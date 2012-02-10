@@ -57,6 +57,9 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 AC_PROG_RANLIB
 
+AC_PATH_PROGS(HELP2MAN, help2man)
+AM_CONDITIONAL(HAVE_HELP2MAN, test x"${HELP2MAN}" != x"")
+
 # Checks for libraries.
 AC_CHECK_LIB([dl], [dlopen])
 AC_CHECK_LIB([pthread], [pthread_create])
