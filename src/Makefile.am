@@ -21,7 +21,7 @@ MAINTAINERCLEANFILES	+= $(man_MANS)
 EXTRA_DIST		= $(man_MANS)
 
 %.8: %
-	$(HELP2MAN) -N -o $@ ./$<
+	$(HELP2MAN) -s 8 -N -o $@ ./$<
 
 booth.8: boothd.8
 	cp $< $@
