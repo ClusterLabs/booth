@@ -62,47 +62,11 @@ AC_PATH_PROGS(PKGCONFIG, pkg-config)
 AM_CONDITIONAL(HAVE_HELP2MAN, test x"${HELP2MAN}" != x"")
 
 # Checks for libraries.
-AC_CHECK_LIB([dl], [dlopen])
 AC_CHECK_LIB([socket], [socket])
 AC_CHECK_LIB([nsl], [t_open])
-AC_CHECK_LIB([rt], [sched_getscheduler])
+AC_CHECK_LIB([plumb], [cl_log])
 
-#
-# glib
-#
-if test x"${PKGCONFIG}" = x""; then
-	AC_MSG_ERROR(You need pkgconfig installed in order to build ${PACKAGE})
-fi
-GPKGNAME="glib-2.0"
-
-if 
-	$PKGCONFIG --exists $GPKGNAME
-then
-	GLIBCONFIG="$PKGCONFIG $GPKGNAME"
-else
-	set -x
-	echo PKG_CONFIG_PATH=$PKG_CONFIG_PATH
-	$PKGCONFIG --exists $GPKGNAME; echo $?
-	$PKGCONFIG --cflags $GPKGNAME; echo $?
-	$PKGCONFIG $GPKGNAME; echo $?
-	set +x
-        
-	AC_MSG_ERROR(You need glib2-devel installed in order to build ${PACKAGE})
-fi
-AC_MSG_RESULT(using $GLIBCONFIG)
-
-if test "X$GLIBCONFIG" != X; then
-	AC_MSG_CHECKING(for special glib includes: )
-	GLIBHEAD=`$GLIBCONFIG --cflags`
-	AC_MSG_RESULT($GLIBHEAD)
-	CPPFLAGS="$CPPFLAGS $GLIBHEAD"
-
-	AC_MSG_CHECKING(for glib library flags)
-	GLIBLIB=`$GLIBCONFIG --libs`
-	AC_MSG_RESULT($GLIBLIB)
-	LIBS="$LIBS $GLIBLIB"
-fi
-
+PKG_CHECK_MODULES(GLIB, [glib-2.0])
 
 # Checks for header files.
 AC_FUNC_ALLOCA

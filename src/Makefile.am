@@ -2,15 +2,15 @@ MAINTAINERCLEANFILES	= Makefile.in
 
 AM_CFLAGS		= -fPIC -Werror
 
-INCLUDES		= -I$(top_builddir)/include
+AM_CPPFLAGS		= -I$(top_builddir)/include
 
 sbin_PROGRAMS		= boothd
 
 boothd_SOURCES	 	= config.c main.c paxos.c ticket.c  transport.c \
 			  pacemaker.c paxos_lease.c timer.c
 
-boothd_LDADD	  	= -lplumb -lplumbgpl
 boothd_LDFLAGS		= $(OS_DYFLAGS) -L./
+boothd_CPPFLAGS		= $(GLIB_CFLAGS)
 
 noinst_HEADERS		= booth.h list.h pacemaker.h paxos_lease.h timer.h \
 			  config.h log.h paxos.h ticket.h transport.h
