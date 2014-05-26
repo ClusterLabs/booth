@@ -60,6 +60,31 @@ static int ticket_realloc(void)
 }
 
 
+static int exclude_site_realloc(struct ticket_config *tk)
+{
+	const int added = 2;
+	int had, want;
+	void *p;
+
+	had = tk->exclude_site_allocated;
+	want = had + added;
+
+	p = realloc(tk->exclude_site,
+			sizeof(struct exclude_site_config) * want);
+	if (!p) {
+		log_error("can't alloc more exclude sites");
+		return -ENOMEM;
+	}
+
+	tk->exclude_site = p;
+	memset(tk->exclude_site + had, 0,
+			sizeof(struct exclude_site_config) * added);
+	tk->exclude_site_allocated = want;
+
+	return 0;
+}
+
+
 int add_site(char *address, int type);
 int add_site(char *addr_string, int type)
 {
@@ -286,6 +311,30 @@ static int parse_weights(const char *input, int weights[MAX_NODES])
 	}
 
 	return i;
+}
+
+
+static int set_exclude_siteid(void)
+{
+	int i, j, k;
+	struct ticket_config *t;
+	struct exclude_site_config *e;
+	struct booth_site *s;
+
+	for (i = 0; i < booth_conf->ticket_count; i++) {
+		t = &booth_conf->ticket[i];
+		for (j = 0; j < t->exclude_site_count; j++) {
+			e = &t->exclude_site[j];
+			for (k = 0; k < booth_conf->site_count; k++) {
+				s = &booth_conf->site[k];
+				if (strcmp(e->addr, s->addr_string) == 0) {
+					e->id = s->site_id;
+					break;
+				}
+			}
+		}
+	}
+	return 0;
 }
 
 
@@ -580,6 +629,18 @@ no_value:
 			continue;
 		}
 
+		if (strcmp(key, "exclude_site") == 0 && last_ticket) {
+			i = last_ticket->exclude_site_count;
+			if (i == last_ticket->exclude_site_allocated) {
+				if (exclude_site_realloc(last_ticket) < 0)
+					goto out;
+			}
+			last_ticket->exclude_site[i].id = -1;
+			strcpy(last_ticket->exclude_site[i].addr, val);
+			last_ticket->exclude_site_count++;
+			continue;
+		}
+
 
 		error = "Unknown item";
 		goto out;
@@ -604,6 +665,9 @@ no_value:
 		if (!booth_conf->name[0])
 			strcpy(booth_conf->name, "booth");
 	}
+
+	if (set_exclude_siteid() < 0)
+		goto out;
 
 	return 0;
 

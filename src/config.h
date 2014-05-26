@@ -33,6 +33,14 @@
 #define TICKET_ALLOC	16
 
 
+struct exclude_site_config {
+	/** site ID (maps site_id of struct booth_site). */
+	int id;
+
+	/** IP address of site. */
+	char addr[BOOTH_NAME_LEN];
+};
+
 
 struct ticket_config {
 	/** \name Configuration items.
@@ -180,6 +188,12 @@ struct ticket_config {
 	 * Starts at 0, counts up. */
 	int retry_number;
 	/** @} */
+
+	int exclude_site_count;
+	int exclude_site_allocated;
+
+	/** Sites which don't grant this ticket. */
+	struct exclude_site_config *exclude_site;
 };
 
 

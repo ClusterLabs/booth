@@ -693,7 +693,17 @@ int new_election(struct ticket_config *tk,
 {
 	struct booth_site *new_leader;
 	time_t now;
+	int i;
 
+
+	for (i = 0; i < tk->exclude_site_count; i++) {
+		if (local->site_id == tk->exclude_site[i].id) {
+			tk_log_info("cannot grant here because it's "
+				"an excepted ticket on the own site");
+			ticket_next_cron_in(tk, 3600);
+			return 0;
+		}
+	}
 
 	time(&now);
 	tk_log_debug("start new election?, now=%" PRIi64 ", end %" PRIi64,

@@ -245,6 +245,10 @@ See below for details about booth specific environment variables
 and the distributed 'service-runnable' script.
 
 
+*'exclude_site'*::
+	The specified 'site' doesn't grant this ticket.
+
+
 A more verbose example of a configuration file might be
 
 -----------------------
