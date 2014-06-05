@@ -122,9 +122,13 @@ static void update_ticket_from_msg(struct ticket_config *tk,
 static void copy_ticket_from_msg(struct ticket_config *tk,
 		struct boothc_ticket_msg *msg)
 {
-	tk->term_expires = time(NULL) + ntohl(msg->ticket.term_valid_for);
-	tk->current_term = ntohl(msg->ticket.term);
-	tk->commit_index = ntohl(msg->ticket.leader_commit);
+	if (msg) {
+		tk->term_expires = time(NULL) + ntohl(msg->ticket.term_valid_for);
+		tk->current_term = ntohl(msg->ticket.term);
+		tk->commit_index = ntohl(msg->ticket.leader_commit);
+	} else {
+		tk->term_expires = time(NULL) + tk->term_duration;
+	}
 }
 
 static void become_follower(struct ticket_config *tk,
