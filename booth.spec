@@ -77,8 +77,8 @@ cp -a conf/booth@.service %{buildroot}/usr/lib/systemd/system/booth@.service
 
 mkdir -p %{buildroot}/%{test_path}
 cp -a unit-tests/ script/unit-test.py test conf %{buildroot}/%{test_path}/
-chmod +x %{buildroot}/%{test_path}/booth_path
-chmod +x %{buildroot}/%{test_path}/live_test.sh
+chmod +x %{buildroot}/%{test_path}/test/booth_path
+chmod +x %{buildroot}/%{test_path}/test/live_test.sh
 
 mkdir -p %{buildroot}/%{test_path}/src/
 ln -s %{_sbindir}/boothd %{buildroot}/%{test_path}/src/
@@ -94,6 +94,9 @@ rm -rf %{buildroot}
 %{_initrddir}/booth-arbitrator
 %{_mandir}/man8/booth.8.gz
 %{_mandir}/man8/boothd.8.gz
+%{_datadir}/doc/booth/README
+%{_datadir}/doc/booth/COPYING
+%{_datadir}/doc/booth/boothd.8.html
 %dir /usr/lib/ocf
 %dir /usr/lib/ocf/resource.d
 %dir /usr/lib/ocf/resource.d/pacemaker
