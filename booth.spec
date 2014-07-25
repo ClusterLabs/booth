@@ -104,6 +104,9 @@ rm -rf %{buildroot}
 %{_initrddir}/booth-arbitrator
 %{_mandir}/man8/booth.8.gz
 %{_mandir}/man8/boothd.8.gz
+%{_datadir}/doc/booth/README
+%{_datadir}/doc/booth/COPYING
+%{_datadir}/doc/booth/boothd.8.html
 %dir /usr/lib/ocf
 %dir /usr/lib/ocf/resource.d
 %dir /usr/lib/ocf/resource.d/pacemaker
