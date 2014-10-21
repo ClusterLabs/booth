@@ -1,0 +1,3 @@
+# Booth configuration file to load
+config="/etc/booth/booth.conf"
+
