@@ -24,7 +24,7 @@
  * at result for the MAC
  */
 int calc_hmac(const void *data, size_t datalen,
-	int hid, unsigned char *result, char *key, int keylen)
+	int hid, unsigned char *result, char *key, unsigned int keylen)
 {
 	static gcry_md_hd_t digest;
 	gcry_error_t err;

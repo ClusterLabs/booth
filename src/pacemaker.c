@@ -265,7 +265,8 @@ static int pcmk_store_ticket_nonatomic(struct ticket_config *tk)
 	return rv;
 }
 
-typedef int (*attr_f)(struct ticket_config *tk, const char *name, char *val);
+typedef int (*attr_f)(struct ticket_config *tk, const char *name,
+		      const char *val);
 
 struct attr_tab
 {
@@ -273,19 +274,21 @@ struct attr_tab
 	attr_f handling_f;
 };
 
-static int save_expires(struct ticket_config *tk, const char *name, char *val)
+static int save_expires(struct ticket_config *tk, const char *name,
+			const char *val)
 {
 	secs2tv(unwall_ts(atol(val)), &tk->term_expires);
 	return 0;
 }
 
-static int save_term(struct ticket_config *tk, const char *name, char *val)
+static int save_term(struct ticket_config *tk, const char *name,
+		     const char *val)
 {
 	tk->current_term = atol(val);
 	return 0;
 }
 
-static int parse_boolean(char *val)
+static int parse_boolean(const char *val)
 {
 	long v;
 
@@ -299,25 +302,29 @@ static int parse_boolean(char *val)
 	return v;
 }
 
-static int save_granted(struct ticket_config *tk, const char *name, char *val)
+static int save_granted(struct ticket_config *tk, const char *name,
+			const char *val)
 {
 	tk->is_granted = parse_boolean(val);
 	return 0;
 }
 
-static int save_owner(struct ticket_config *tk, const char *name, char *val)
+static int save_owner(struct ticket_config *tk, const char *name,
+		      const char *val)
 {
 	/* No check, node could have been deconfigured. */
 	tk->leader = NULL;
 	return !find_site_by_id(atol(val), &tk->leader);
 }
 
-static int ignore_attr(struct ticket_config *tk, const char *name, char *val)
+static int ignore_attr(struct ticket_config *tk, const char *name,
+		       const char *val)
 {
 	return 0;
 }
 
-static int save_attr(struct ticket_config *tk, const char *name, char *val)
+static int save_attr(struct ticket_config *tk, const char *name,
+		     const char *val)
 {
 	/* tell store_geo_attr not to store time, we don't have that
 	 * information available
@@ -397,13 +404,15 @@ static int save_attributes(struct ticket_config *tk, xmlDocPtr doc)
 	for (attr = n->properties; attr; attr = attr->next) {
 		v = xmlGetProp(n, attr->name);
 		for (atp = attr_handlers; atp->name; atp++) {
-			if (!strcmp(atp->name, attr->name)) {
-				rc = atp->handling_f(tk, attr->name, v);
+			if (!strcmp(atp->name, (const char *) attr->name)) {
+				rc = atp->handling_f(tk, (const char *) attr->name,
+						     (const char *) v);
 				break;
 			}
 		}
 		if (!atp->name) {
-			rc = save_attr(tk, attr->name, v);
+			rc = save_attr(tk, (const char *) attr->name,
+				       (const char *) v);
 		}
 		if (rc) {
 			tk_log_error("error storing attribute %s", attr->name);
@@ -446,7 +455,7 @@ static int parse_ticket_state(struct ticket_config *tk, FILE *p)
 		}
 	}
 
-	doc = xmlReadDoc(input->str, NULL, NULL, opts);
+	doc = xmlReadDoc((const xmlChar *) input->str, NULL, NULL, opts);
 	if (doc == NULL) {
 		errptr = xmlGetLastError();
 		if (errptr) {

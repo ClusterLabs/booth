@@ -256,7 +256,7 @@ static int format_peers(char **pdata, unsigned int *len)
 void list_peers(int fd)
 {
 	char *data;
-	int olen;
+	unsigned int olen;
 	struct boothc_hdr_msg hdr;
 
 	if (format_peers(&data, &olen) < 0)
@@ -274,7 +274,7 @@ out:
  */
 static void trim_key()
 {
-	unsigned char *p;
+	char *p;
 	int i;
 
 	for (i=0, p=booth_conf->authkey; i < booth_conf->authkey_len; i++, p++)
@@ -746,7 +746,8 @@ static int do_command(cmd_request_t cmd)
 	if (!cl.msg.ticket.id[0]) {
 		/* If the loaded configuration has only a single ticket defined, use that. */
 		if (booth_conf->ticket_count == 1) {
-			strcpy(cl.msg.ticket.id, booth_conf->ticket[0].name);
+			strncpy(cl.msg.ticket.id, booth_conf->ticket[0].name,
+				sizeof(cl.msg.ticket.id));
 		} else {
 			log_error("No ticket given.");
 			goto out_close;
@@ -1457,7 +1458,7 @@ static int do_server(int type)
 		return rv;
 
 	if (cl_enable_coredumps(TRUE) < 0){
-		cl_log(LOG_ERR, "enabling core dump failed");
+		log_error("enabling core dump failed");
 	}
 	cl_cdtocoredir();
 	prctl(PR_SET_DUMPABLE, (unsigned long)TRUE, 0UL, 0UL, 0UL);
@@ -1510,7 +1511,8 @@ static int do_attr(void)
 	if (!cl.attr_msg.attr.tkt_id[0]) {
 		/* If the loaded configuration has only a single ticket defined, use that. */
 		if (booth_conf->ticket_count == 1) {
-			strcpy(cl.attr_msg.attr.tkt_id, booth_conf->ticket[0].name);
+			strncpy(cl.attr_msg.attr.tkt_id, booth_conf->ticket[0].name,
+				sizeof(cl.attr_msg.attr.tkt_id));
 		} else {
 			rv = 1;
 			log_error("No ticket given.");
@@ -1537,7 +1539,7 @@ out:
 int main(int argc, char *argv[], char *envp[])
 {
 	int rv;
-	char *cp;
+	const char *cp;
 
 	init_set_proc_title(argc, argv, envp);
 	get_time(&start_time);

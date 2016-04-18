@@ -27,7 +27,7 @@
 #define BOOTH_HASH GCRY_MD_SHA1
 
 int calc_hmac(const void *data, size_t datalen,
-	int hid, unsigned char *result, char *key, int keylen);
+	int hid, unsigned char *result, char *key, unsigned int keylen);
 int verify_hmac(const void *data, size_t datalen,
 	int hid, unsigned char *hmac, char *key, int keylen);
 #endif

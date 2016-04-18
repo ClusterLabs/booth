@@ -77,10 +77,10 @@
 #define TICKET_LOST CHAR2CONST('L', 'O', 'S', 'T')
 
 
-typedef unsigned char boothc_site  [BOOTH_NAME_LEN];
-typedef unsigned char boothc_ticket[BOOTH_NAME_LEN];
-typedef unsigned char boothc_attr[BOOTH_NAME_LEN];
-typedef unsigned char boothc_attr_value[BOOTH_ATTRVAL_LEN];
+typedef char boothc_site[BOOTH_NAME_LEN];
+typedef char boothc_ticket[BOOTH_NAME_LEN];
+typedef char boothc_attr[BOOTH_NAME_LEN];
+typedef char boothc_attr_value[BOOTH_ATTRVAL_LEN];
 
 /* message option bits */
 enum {
@@ -290,7 +290,7 @@ struct booth_site {
 	/** Roles, like ACCEPTOR, PROPOSER, or LEARNER. Not really used ATM. */
 	int role;
 
-	char addr_string[BOOTH_NAME_LEN];
+	boothc_site addr_string;
 
 	int tcp_fd;
 	int udp_fd;

@@ -25,8 +25,10 @@ doc_DATA	= $(generated_docs)
 generated_docs	=
 generated_mans	=
 
-if BUILD_ASCIIDOC
+if BUILD_ASCIIDOC_HTML_MAN
 generated_docs	+= $(ascii:%.txt=%.html) $(asciiman:%.txt=%.html)
+endif
+if BUILD_ASCIIDOC
 generated_mans	+= $(asciiman:%.8.txt=%.8)
 $(generated_mans): $(asciiman)
 man8_MANS	= $(generated_mans)

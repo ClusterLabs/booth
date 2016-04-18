@@ -64,11 +64,8 @@ AC_PATH_PROGS(ASCIIDOC, asciidoc)
 AC_PATH_PROGS(XML2CONFIG, xml2-config)
 
 AM_CONDITIONAL(BUILD_ASCIIDOC, test x"${ASCIIDOC}" != x"")
-
-# Checks for libraries.
-AC_CHECK_LIB([socket], [socket])
-AC_CHECK_LIB([nsl], [t_open])
-AC_CHECK_LIB([gpl], [cl_log])
+AM_CONDITIONAL(BUILD_ASCIIDOC_HTML_MAN,
+	       test "x${ASCIIDOC}" != "x" && test "x$with_html_man" = "xyes")
 
 # libgcrypt or mhash for hmac
 libgcrypt_installed="yes"
@@ -202,7 +199,7 @@ AC_ARG_ENABLE([small-memory-footprint],
 	[ default="no" ])
 
 AC_ARG_WITH([initddir],
-	[  --with-initddir=DIR     : path to init script directory. ],
+	[  --with-initddir=DIR             : path to init script directory. ],
 	[ INITDDIR="$withval" ],
 	[ INITDDIR="$sysconfdir/init.d" ])
 
@@ -210,13 +207,12 @@ test -s .git_info &&
 	GIT_VER="`cat .git_info`"
 
 AC_ARG_WITH([build-version],
-	[  --with-build-version=STR     : build version ],
+	[  --with-build-version=STR        : build version ],
 	[ BOOTH_BUILD_VERSION="$withval" ],
 	[ BOOTH_BUILD_VERSION="${GIT_VER:-$PACKAGE_VERSION}" ])
 
-AC_ARG_ENABLE([resource-monitor],
-	[  --enable-resource-monitor       : Enabling Resource Monitor ],
-	[ default="no" ])
+AC_ARG_WITH([html_man],
+	[  --without-html_man              : Avoid generating man pages in HTML.])
 
 # OS detection
 # THIS SECTION MUST DIE!
@@ -450,7 +446,7 @@ AC_MSG_RESULT([  System configuration     = ${sysconfdir}])
 AC_MSG_RESULT([  System init.d directory  = ${INITDDIR}])
 AC_MSG_RESULT([  booth config dir         = ${BOOTHSYSCONFDIR}])
 AC_MSG_RESULT([  SOCKETDIR                = ${SOCKETDIR}])
-AC_MSG_RESULT([  Features                 =${PACKAGE_FEATURES}])
+AC_MSG_RESULT([  Features                 = ${PACKAGE_FEATURES}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([$PACKAGE build info:])
 AC_MSG_RESULT([  Library SONAME           = ${SONAME}])

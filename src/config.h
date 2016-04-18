@@ -260,7 +260,7 @@ struct booth_config {
     /** File containing the authentication file. */
 	char authfile[BOOTH_PATH_LEN];
 	struct stat authstat;
-	unsigned char authkey[BOOTH_MAX_KEY_LEN];
+	char authkey[BOOTH_MAX_KEY_LEN];
 	int authkey_len;
     /** Maximum time skew between peers allowed */
 	int maxtimeskew;
@@ -297,7 +297,7 @@ int read_config(const char *path, int type);
 
 int check_config(int type);
 
-int find_site_by_name(unsigned char *site, struct booth_site **node, int any_type);
+int find_site_by_name(char *site, struct booth_site **node, int any_type);
 int find_site_by_id(uint32_t site_id, struct booth_site **node);
 
 const char *type_to_string(int type);

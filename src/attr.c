@@ -16,8 +16,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <assert.h>
 #include <stdio.h>
+#include <string.h>
 #include "attr.h"
+#include "booth.h"
 #include "ticket.h"
 #include "pacemaker.h"
 
@@ -244,7 +247,8 @@ static void free_geo_attr(gpointer data)
 	g_free(a);
 }
 
-int store_geo_attr(struct ticket_config *tk, const char *name, char *val, int notime)
+int store_geo_attr(struct ticket_config *tk, const char *name,
+		   const char *val, int notime)
 {
 	struct geo_attr *a;
 	GDestroyNotify free_geo_attr_notify = free_geo_attr;
@@ -274,8 +278,9 @@ int store_geo_attr(struct ticket_config *tk, const char *name, char *val, int no
 	if (!notime)
 		get_time(&a->update_ts);
 
+	assert(strnlen(name, BOOTH_NAME_LEN) < BOOTH_NAME_LEN);
 	g_hash_table_insert(tk->attr,
-		g_strndup(name, BOOTH_NAME_LEN), a);
+		g_strndup(name, BOOTH_NAME_LEN-1), a);
 
 	return 0;
 }

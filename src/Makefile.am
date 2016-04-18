@@ -19,8 +19,8 @@ boothd_SOURCES += auth.c
 endif
 
 boothd_LDFLAGS		= $(OS_DYFLAGS) -L./
-boothd_LDADD		= -lplumb -lplumbgpl -lz -lm -lglib-2.0
-boothd_CPPFLAGS		= $(GLIB_CFLAGS)
+boothd_LDADD		= -lplumb -lplumbgpl -lz -lm $(GLIB_LIBS)
+boothd_CFLAGS		= $(GLIB_CFLAGS)
 
 noinst_HEADERS		= booth.h pacemaker.h \
 			  config.h log.h raft.h ticket.h transport.h handler.h request.h attr.h
