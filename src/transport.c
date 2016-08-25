@@ -88,7 +88,7 @@ static int find_address(unsigned char ipaddr[BOOTH_IPADDR_LEN],
 	int bytes, bits_left, mask;
 	unsigned char node_bits, ip_bits;
 	uint8_t *n_a;
-	int matched;
+	int matched, matched_tmp = 0;
 	enum match_type did_match = NO_MATCH;
 
 
@@ -108,10 +108,13 @@ static int find_address(unsigned char ipaddr[BOOTH_IPADDR_LEN],
 				break;
 
 		if (matched == node->addrlen) {
-			*address_bits_matched = matched * 8;
-			*me = node;
-			did_match = EXACT_MATCH;
-			break;
+			if((matched_tmp < matched * 8)||((node->type == SITE)&&(matched_tmp == matched * 8)))
+			{
+				*address_bits_matched = matched_tmp = matched * 8;
+				*me = node;
+				did_match = EXACT_MATCH;
+				continue;
+			}
 		}
 
 		if (!fuzzy_allowed)
