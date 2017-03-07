@@ -140,7 +140,6 @@ static int find_address(unsigned char ipaddr[BOOTH_IPADDR_LEN],
 }
 
 
-int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed);
 int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed)
 {
 	int fd;
