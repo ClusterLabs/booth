@@ -1,6 +1,6 @@
 The Booth Cluster Ticket Manager
-=============
-    
+================================
+
 Booth manages tickets which authorize cluster sites located in
 geographically dispersed locations to run resources. It
 facilitates support of geographically distributed clustering in
@@ -38,7 +38,7 @@ ticket updates to the followers. The followers are required to
 obey the leader.
 
 Booth startup
-------------
+-------------
 
 On startup, the booth process first loads tickets, if available,
 from the CIB. Afterwards, it broadcasts a query to get tickets'
@@ -53,7 +53,7 @@ only immediately after the booth startup. It also serves as a
 configuration reload.
 
 Grant and revoke operations
-------------
+---------------------------
 
 A ticket first has to be granted using the 'booth client grant'
 command.
@@ -81,7 +81,7 @@ If in effect, the grant delay time is shown in the 'booth list'
 command output.
 
 Ticket management and server operation
-------------
+--------------------------------------
 
 A granted ticket is managed by the booth servers so that its
 availability is maximized without breaking the basic guarantee
@@ -132,7 +132,7 @@ an unsolicited VOTE_FOR with an empty vote. On receiving such RPC
 other servers start new elections to elect a new leader.
 
 Split brain
-------------
+-----------
 
 On split brains two possible issues arise: leader in minority and
 follower disconnected from the leader.
@@ -192,4 +192,4 @@ Packets either not older than that or with a timestamp more
 recent than the previous one from the same peer are accepted. The
 time skew can be configured in the booth configuration file.
 
-# vim: set ft=asciidoc :
+// vim: set ft=asciidoc :
