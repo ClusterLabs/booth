@@ -16,6 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include "attr.h"
@@ -149,22 +150,12 @@ static int read_server_reply(
 	return rv;
 }
 
-int do_attr_command(cmd_request_t cmd)
+int do_attr_command(cmd_request_t cmd, struct booth_site *site)
 {
-	struct booth_site *site = NULL;
 	struct boothc_header *header;
 	struct booth_transport const *tpt;
 	int len, rv = -1;
 	char *msg = NULL;
-
-	if (!*cl.site)
-		site = local;
-	else {
-		if (!find_site_by_name(cl.site, &site, 1)) {
-			log_error("Site \"%s\" not configured.", cl.site);
-			goto out_close;
-		}
-	}
 
 	if (site->type == ARBITRATOR) {
 		if (site == local) {
@@ -218,8 +209,7 @@ int do_attr_command(cmd_request_t cmd)
 	rv = test_attr_reply(ntohl(header->result), cmd);
 
 out_close:
-	if (site)
-		tpt->close(site);
+	tpt->close(site);
 	if (msg)
 		free(msg);
 	return rv;

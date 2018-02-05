@@ -347,7 +347,7 @@ int update_authkey()
 	return 0;
 }
 
-static int setup_config(int type)
+static int setup_config(int type, struct booth_site **site)
 {
 	int rv;
 
@@ -370,17 +370,31 @@ static int setup_config(int type)
 #endif
 	}
 
-	/* Set "local" pointer, ignoring errors. */
-	if (cl.type == DAEMON && cl.site[0]) {
-		if (!find_site_by_name(cl.site, &local, 1)) {
-			log_error("Cannot find \"%s\" in the configuration.",
-					cl.site);
-			return -EINVAL;
+	/* Determine the target based on the provided address, ignore
+	   errors with DAEMON (special debug/testing arrangement). */
+	if (*cl.site && (cl.type == DAEMON || (site && strcmp(cl.site, OTHER_SITE)))) {
+		if (!find_site_by_name(cl.site, cl.type == DAEMON ? &local : site, 1)) {
+			log_error("Cannot find \"%s\"%s in the configuration.",
+				  cl.site, cl.type == DAEMON ? " (myself)" : "");
+			if (cl.type != DAEMON)
+				return -EINVAL;
 		}
-		local->local = 1;
-	} else
-		find_myself(NULL, type == CLIENT || type == GEOSTORE);
-
+		if (cl.type == DAEMON)
+			local->local = 1;
+		else
+			site = NULL;  /* prevent from overwriting */
+	}
+	/* Self-determine us. */
+	if (!find_myself(site, type == CLIENT || type == GEOSTORE)) {
+		log_error("Cannot find myself in the configuration.");
+		return -EINVAL;
+	}
+	/* We can resolve "other" only after we've determined us. */
+	if (*cl.site && site && !strcmp(cl.site, OTHER_SITE)
+			&& !find_site_by_name(cl.site, site, 1)) {
+		log_error("Cannot find %s node in the configuration.", cl.site);
+		return -EINVAL;
+	}
 
 	rv = check_config(type);
 	if (rv < 0)
@@ -635,9 +649,8 @@ static int test_reply(cmd_result_t reply_code, cmd_request_t cmd)
 	return rv;
 }
 
-static int query_get_string_answer(cmd_request_t cmd)
+static int query_get_string_answer(cmd_request_t cmd, struct booth_site *site)
 {
-	struct booth_site *site;
 	struct boothc_hdr_msg reply;
 	struct boothc_header *header;
 	char *data;
@@ -661,14 +674,6 @@ static int query_get_string_answer(cmd_request_t cmd)
 	data = NULL;
 
 	init_header(header, cmd, 0, cl.options, 0, 0, msg_size);
-
-	if (!*cl.site)
-		site = local;
-	else if (!find_site_by_name(cl.site, &site, 1)) {
-		log_error("cannot find site \"%s\"", cl.site);
-		rv = ENOENT;
-		goto out;
-	}
 
 	tpt = booth_transport + TCP;
 	rv = tpt->open(site);
@@ -709,16 +714,14 @@ out_test_reply:
 	rv = test_reply_f(ntohl(reply.header.result), cmd);
 out_close:
 	tpt->close(site);
-out:
 	if (data)
 		free(data);
 	return rv;
 }
 
 
-static int do_command(cmd_request_t cmd)
+static int do_command(cmd_request_t cmd, struct booth_site *site)
 {
-	struct booth_site *site;
 	struct boothc_ticket_msg reply;
 	struct booth_transport const *tpt;
 	uint32_t leader_id;
@@ -732,19 +735,9 @@ static int do_command(cmd_request_t cmd)
 		op_str = "revoke";
 
 	rv = 0;
-	site = NULL;
 
 	/* Always use TCP for client - at least for now. */
 	tpt = booth_transport + TCP;
-
-	if (!*cl.site)
-		site = local;
-	else {
-		if (!find_site_by_name(cl.site, &site, 1)) {
-			log_error("Site \"%s\" not configured.", cl.site);
-			goto out_close;
-		}
-	}
 
 	if (site->type == ARBITRATOR) {
 		if (site == local) {
@@ -1299,19 +1292,12 @@ static int do_status(int type)
 
 	ret = PCMK_OCF_NOT_RUNNING;
 
-	rv = setup_config(type);
+	rv = setup_config(type, NULL);
 	if (rv) {
 		reason = "Error reading configuration.";
 		ret = PCMK_OCF_UNKNOWN_ERROR;
 		goto quit;
 	}
-
-
-	if (!local) {
-		reason = "No Service IP active here.";
-		goto quit;
-	}
-
 
 	rv = _lockfile(O_RDWR, &status_lock_fd, &pid);
 	if (status_lock_fd == -1) {
@@ -1422,14 +1408,9 @@ static int do_server(int type)
 	int rv = -1;
 	static char log_ent[128] = DAEMON_NAME "-";
 
-	rv = setup_config(type);
+	rv = setup_config(type, NULL);
 	if (rv < 0)
 		return rv;
-
-	if (!local) {
-		log_error("Cannot find myself in the configuration.");
-		exit(EXIT_FAILURE);
-	}
 
 	if (daemonize) {
 		if (daemon(0, 0) < 0) {
@@ -1497,8 +1478,9 @@ static int do_server(int type)
 static int do_client(void)
 {
 	int rv;
+	struct booth_site *site;
 
-	rv = setup_config(CLIENT);
+	rv = setup_config(CLIENT, &site);
 	if (rv < 0) {
 		log_error("cannot read config");
 		goto out;
@@ -1507,12 +1489,12 @@ static int do_client(void)
 	switch (cl.op) {
 	case CMD_LIST:
 	case CMD_PEERS:
-		rv = query_get_string_answer(cl.op);
+		rv = query_get_string_answer(cl.op, site);
 		break;
 
 	case CMD_GRANT:
 	case CMD_REVOKE:
-		rv = do_command(cl.op);
+		rv = do_command(cl.op, site);
 		break;
 	}
 
@@ -1523,8 +1505,9 @@ out:
 static int do_attr(void)
 {
 	int rv = -1;
+	struct booth_site *site;
 
-	rv = setup_config(GEOSTORE);
+	rv = setup_config(GEOSTORE, &site);
 	if (rv < 0) {
 		log_error("cannot read config");
 		goto out;
@@ -1548,12 +1531,12 @@ static int do_attr(void)
 	switch (cl.op) {
 	case ATTR_LIST:
 	case ATTR_GET:
-		rv = query_get_string_answer(cl.op);
+		rv = query_get_string_answer(cl.op, site);
 		break;
 
 	case ATTR_SET:
 	case ATTR_DEL:
-		rv = do_attr_command(cl.op);
+		rv = do_attr_command(cl.op, site);
 		break;
 	}
 
