@@ -934,56 +934,57 @@ out:
 	return -1;
 }
 
-
-int check_config(int type)
+int check_config(struct booth_config *conf, int type)
 {
 	struct passwd *pw;
 	struct group *gr;
 	char *cp, *input;
 
-	if (!booth_conf)
+	if (conf == NULL) {
 		return -1;
-
+	}
 
 	input = (type == ARBITRATOR)
-		? booth_conf->arb_user
-		: booth_conf->site_user;
+		? conf->arb_user
+		: conf->site_user;
 	if (!*input)
 		goto u_inval;
 	if (isdigit(input[0])) {
-		booth_conf->uid = strtol(input, &cp, 0);
+		conf->uid = strtol(input, &cp, 0);
 		if (*cp != 0) {
 u_inval:
 			log_error("User \"%s\" cannot be resolved into a UID.", input);
 			return ENOENT;
 		}
-	}
-	else {
+	} else {
 		pw = getpwnam(input);
 		if (!pw)
 			goto u_inval;
-		booth_conf->uid = pw->pw_uid;
+		conf->uid = pw->pw_uid;
 	}
 
 
 	input = (type == ARBITRATOR)
-		? booth_conf->arb_group
-		: booth_conf->site_group;
-	if (!*input)
+		? conf->arb_group
+		: conf->site_group;
+
+	if (!*input) {
 		goto g_inval;
+	}
+
 	if (isdigit(input[0])) {
-		booth_conf->gid = strtol(input, &cp, 0);
+		conf->gid = strtol(input, &cp, 0);
 		if (*cp != 0) {
 g_inval:
 			log_error("Group \"%s\" cannot be resolved into a UID.", input);
 			return ENOENT;
 		}
-	}
-	else {
+	} else {
 		gr = getgrnam(input);
-		if (!gr)
+		if (!gr) {
 			goto g_inval;
-		booth_conf->gid = gr->gr_gid;
+		}
+		conf->gid = gr->gr_gid;
 	}
 
 	return 0;
