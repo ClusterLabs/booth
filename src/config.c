@@ -38,26 +38,27 @@
 
 static int ticket_size = 0;
 
-static int ticket_realloc(void)
+static int ticket_realloc(struct booth_config *conf)
 {
 	const int added = 5;
 	int had, want;
 	void *p;
 
-	had = booth_conf->ticket_allocated;
+	assert(conf != NULL);
+
+	had = conf->ticket_allocated;
 	want = had + added;
 
-	p = realloc(booth_conf->ticket,
-			sizeof(struct ticket_config) * want);
+	p = realloc(conf->ticket, sizeof(struct ticket_config) * want);
 	if (!p) {
 		log_error("can't alloc more tickets");
 		return -ENOMEM;
 	}
 
-	booth_conf->ticket = p;
-	memset(booth_conf->ticket + had, 0,
-			sizeof(struct ticket_config) * added);
-	booth_conf->ticket_allocated = want;
+	conf->ticket = p;
+	memset(conf->ticket + had, 0,
+	       sizeof(struct ticket_config) * added);
+	conf->ticket_allocated = want;
 
 	return 0;
 }
@@ -115,7 +116,7 @@ static void hostname_to_ip(char * hostname)
 	freeaddrinfo(result);
 }
 
-static int add_site(char *addr_string, int type)
+static int add_site(struct booth_config *conf, char *addr_string, int type)
 {
 	int rv;
 	struct booth_site *site;
@@ -123,18 +124,20 @@ static int add_site(char *addr_string, int type)
 	uint32_t mask;
 	int i;
 
+	assert(conf != NULL);
+
 	rv = 1;
-	if (booth_conf->site_count == MAX_NODES) {
+	if (conf->site_count == MAX_NODES) {
 		log_error("too many nodes");
 		goto out;
 	}
-	if (strnlen(addr_string, sizeof(booth_conf->site[0].addr_string))
-			>= sizeof(booth_conf->site[0].addr_string)) {
+	if (strnlen(addr_string, sizeof(conf->site[0].addr_string))
+			>= sizeof(conf->site[0].addr_string)) {
 		log_error("site address \"%s\" too long", addr_string);
 		goto out;
 	}
 
-	site = booth_conf->site + booth_conf->site_count;
+	site = conf->site + conf->site_count;
 
 	site->family = AF_INET;
 	site->type = type;
@@ -153,17 +156,18 @@ static int add_site(char *addr_string, int type)
 		hostname_to_ip(site->addr_string);
 	}
 
-	site->index = booth_conf->site_count;
-	site->bitmask = 1 << booth_conf->site_count;
+	site->index = conf->site_count;
+	site->bitmask = 1 << conf->site_count;
 	/* Catch site overflow */
 	assert(site->bitmask);
-	booth_conf->all_bits |= site->bitmask;
-	if (type == SITE)
-		booth_conf->sites_bits |= site->bitmask;
+	conf->all_bits |= site->bitmask;
+	if (type == SITE) {
+		conf->sites_bits |= site->bitmask;
+	}
 
 	site->tcp_fd = -1;
 
-	booth_conf->site_count++;
+	conf->site_count++;
 
 	rv = 0;
 	memset(&site->sa6, 0, sizeof(site->sa6));
@@ -185,7 +189,7 @@ static int add_site(char *addr_string, int type)
 
 		site->family = AF_INET;
 		site->sa4.sin_family = site->family;
-		site->sa4.sin_port = htons(booth_conf->port);
+		site->sa4.sin_port = htons(conf->port);
 		site->saddrlen = sizeof(site->sa4);
 		site->addrlen = sizeof(site->sa4.sin_addr);
 		site->site_id = crc32(nid, (void*)&site->sa4.sin_addr, site->addrlen);
@@ -197,7 +201,7 @@ static int add_site(char *addr_string, int type)
 		site->family = AF_INET6;
 		site->sa6.sin6_family = site->family;
 		site->sa6.sin6_flowinfo = 0;
-		site->sa6.sin6_port = htons(booth_conf->port);
+		site->sa6.sin6_port = htons(conf->port);
 		site->saddrlen = sizeof(site->sa6);
 		site->addrlen = sizeof(site->sa6.sin6_addr);
 		site->site_id = crc32(nid, (void*)&site->sa6.sin6_addr, site->addrlen);
@@ -215,11 +219,12 @@ static int add_site(char *addr_string, int type)
 
 
 	/* Test for collisions with other sites */
-	for(i=0; i<site->index; i++)
-		if (booth_conf->site[i].site_id == site->site_id) {
+	for (i = 0; i < site->index; i++) {
+		if (conf->site[i].site_id == site->site_id) {
 			log_error("Got a site-ID collision. Please file a bug on https://github.com/ClusterLabs/booth/issues/new, attaching the configuration file.");
 			exit(1);
 		}
+	}
 
 out:
 	return rv;
@@ -260,22 +265,24 @@ static inline int is_end_of_line(char *cp)
 }
 
 
-static int add_ticket(const char *name, struct ticket_config **tkp,
-		const struct ticket_config *def)
+static int add_ticket(struct booth_config *conf, const char *name,
+                      struct ticket_config **tkp, const struct ticket_config *def)
 {
 	int rv;
 	struct ticket_config *tk;
 
+	assert(conf != NULL);
 
-	if (booth_conf->ticket_count == booth_conf->ticket_allocated) {
-		rv = ticket_realloc();
-		if (rv < 0)
+	if (conf->ticket_count == conf->ticket_allocated) {
+		rv = ticket_realloc(conf);
+		if (rv < 0) {
 			return rv;
+		}
 	}
 
 
-	tk = booth_conf->ticket + booth_conf->ticket_count;
-	booth_conf->ticket_count++;
+	tk = conf->ticket + conf->ticket_count;
+	conf->ticket_count++;
 
 	if (!check_max_len_valid(name, sizeof(tk->name))) {
 		log_error("ticket name \"%s\" too long.", name);
@@ -538,7 +545,7 @@ err_out:
 
 extern int poll_timeout;
 
-int read_config(const char *path, int type)
+int read_config(struct booth_config **conf, const char *path, int type)
 {
 	char line[1024];
 	char error_str_buf[1024];
@@ -553,38 +560,41 @@ int read_config(const char *path, int type)
 	struct ticket_config defaults = { { 0 } };
 	struct ticket_config *current_tk = NULL;
 
+	assert(conf != NULL);
+	free(*conf);
 
 	fp = fopen(path, "r");
 	if (!fp) {
 		log_error("failed to open %s: %s", path, strerror(errno));
+		*conf = NULL;
 		return -1;
 	}
 
-	booth_conf = malloc(sizeof(struct booth_config)
+	*conf = malloc(sizeof(struct booth_config)
 			+ TICKET_ALLOC * sizeof(struct ticket_config));
-	if (!booth_conf) {
+	if (*conf == NULL) {
 		fclose(fp);
 		log_error("failed to alloc memory for booth config");
 		return -ENOMEM;
 	}
-	memset(booth_conf, 0, sizeof(struct booth_config)
+	memset(*conf, 0, sizeof(struct booth_config)
 			+ TICKET_ALLOC * sizeof(struct ticket_config));
 	ticket_size = TICKET_ALLOC;
 
 
-	booth_conf->proto = UDP;
-	booth_conf->port = BOOTH_DEFAULT_PORT;
-	booth_conf->maxtimeskew = BOOTH_DEFAULT_MAX_TIME_SKEW;
-	booth_conf->authkey[0] = '\0';
+	(*conf)->proto = UDP;
+	(*conf)->port = BOOTH_DEFAULT_PORT;
+	(*conf)->maxtimeskew = BOOTH_DEFAULT_MAX_TIME_SKEW;
+	(*conf)->authkey[0] = '\0';
 
 
 	/* Provide safe defaults. -1 is reserved, though. */
-	booth_conf->uid = -2;
-	booth_conf->gid = -2;
-	strcpy(booth_conf->site_user,  "hacluster");
-	strcpy(booth_conf->site_group, "haclient");
-	strcpy(booth_conf->arb_user,   "nobody");
-	strcpy(booth_conf->arb_group,  "nobody");
+	(*conf)->uid = -2;
+	(*conf)->gid = -2;
+	strcpy((*conf)->site_user,  "hacluster");
+	strcpy((*conf)->site_group, "haclient");
+	strcpy((*conf)->arb_user,   "nobody");
+	strcpy((*conf)->arb_group,  "nobody");
 
 	parse_weights("", defaults.weight);
 	defaults.clu_test.path  = NULL;
@@ -694,11 +704,11 @@ no_value:
 				goto err;
 			}
 
-			if (strcasecmp(val, "UDP") == 0)
-				booth_conf->proto = UDP;
-			else if (strcasecmp(val, "SCTP") == 0)
-				booth_conf->proto = SCTP;
-			else {
+			if (strcasecmp(val, "UDP") == 0) {
+				(*conf)->proto = UDP;
+			} else if (strcasecmp(val, "SCTP") == 0) {
+				(*conf)->proto = SCTP;
+			} else {
 				(void)snprintf(error_str_buf, sizeof(error_str_buf),
 				    "invalid transport protocol \"%s\"", val);
 				error = error_str_buf;
@@ -709,12 +719,12 @@ no_value:
 		}
 
 		if (strcmp(key, "port") == 0) {
-			booth_conf->port = atoi(val);
+			(*conf)->port = atoi(val);
 			continue;
 		}
 
 		if (strcmp(key, "name") == 0) {
-			safe_copy(booth_conf->name, 
+			safe_copy((*conf)->name,
 					val, BOOTH_NAME_LEN,
 					"name");
 			continue;
@@ -722,48 +732,50 @@ no_value:
 
 #if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
 		if (strcmp(key, "authfile") == 0) {
-			safe_copy(booth_conf->authfile,
+			safe_copy((*conf)->authfile,
 					val, BOOTH_PATH_LEN,
 					"authfile");
 			continue;
 		}
 
 		if (strcmp(key, "maxtimeskew") == 0) {
-			booth_conf->maxtimeskew = atoi(val);
+			(*conf)->maxtimeskew = atoi(val);
 			continue;
 		}
 #endif
 
 		if (strcmp(key, "site") == 0) {
-			if (add_site(val, SITE))
+			if (add_site(*conf, val, SITE)) {
 				goto err;
+			}
 			continue;
 		}
 
 		if (strcmp(key, "arbitrator") == 0) {
-			if (add_site(val, ARBITRATOR))
+			if (add_site(*conf, val, ARBITRATOR)) {
 				goto err;
+			}
 			continue;
 		}
 
 		if (strcmp(key, "site-user") == 0) {
-			safe_copy(booth_conf->site_user, optarg, BOOTH_NAME_LEN,
-					"site-user");
+			safe_copy((*conf)->site_user, optarg, BOOTH_NAME_LEN,
+			          "site-user");
 			continue;
 		}
 		if (strcmp(key, "site-group") == 0) {
-			safe_copy(booth_conf->site_group, optarg, BOOTH_NAME_LEN,
-					"site-group");
+			safe_copy((*conf)->site_group, optarg, BOOTH_NAME_LEN,
+			          "site-group");
 			continue;
 		}
 		if (strcmp(key, "arbitrator-user") == 0) {
-			safe_copy(booth_conf->arb_user, optarg, BOOTH_NAME_LEN,
-					"arbitrator-user");
+			safe_copy((*conf)->arb_user, optarg, BOOTH_NAME_LEN,
+			          "arbitrator-user");
 			continue;
 		}
 		if (strcmp(key, "arbitrator-group") == 0) {
-			safe_copy(booth_conf->arb_group, optarg, BOOTH_NAME_LEN,
-					"arbitrator-group");
+			safe_copy((*conf)->arb_group, optarg, BOOTH_NAME_LEN,
+			          "arbitrator-group");
 			continue;
 		}
 
@@ -781,7 +793,8 @@ no_value:
 			}
 			if (!strcmp(val, "__defaults__")) {
 				current_tk = &defaults;
-			} else if (add_ticket(val, &current_tk, &defaults)) {
+			} else if (add_ticket(*conf, val, &current_tk,
+			                      &defaults)) {
 				goto err;
 			}
 			continue;
@@ -880,12 +893,12 @@ no_value:
 	}
 	fclose(fp);
 
-	if ((booth_conf->site_count % 2) == 0) {
+	if (((*conf)->site_count % 2) == 0) {
 		log_warn("Odd number of nodes is strongly recommended!");
 	}
 
 	/* Default: make config name match config filename. */
-	if (!booth_conf->name[0]) {
+	if (!(*conf)->name[0]) {
 		cp = strrchr(path, '/');
 		cp = cp ? cp+1 : (char *)path;
 		cp2 = strrchr(cp, '.');
@@ -895,8 +908,8 @@ no_value:
 			log_error("booth config file name too long");
 			goto out;
 		}
-		strncpy(booth_conf->name, cp, cp2-cp);
-		*(booth_conf->name+(cp2-cp)) = '\0';
+		strncpy((*conf)->name, cp, cp2-cp);
+		*((*conf)->name+(cp2-cp)) = '\0';
 	}
 
 	if (!postproc_ticket(current_tk)) {
@@ -916,8 +929,8 @@ out:
 	log_error("%s in config file line %d",
 			error, lineno);
 
-	free(booth_conf);
-	booth_conf = NULL;
+	free(*conf);
+	*conf = NULL;
 	return -1;
 }
 

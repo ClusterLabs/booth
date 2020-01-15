@@ -327,8 +327,17 @@ extern struct booth_config *booth_conf;
 
 #define is_auth_req() (booth_conf->authkey[0] != '\0')
 
-
-int read_config(const char *path, int type);
+/**
+ * @internal
+ * Parse booth configuration file and store as structured data
+ *
+ * @param[in,out] conf config object to free-alloc cycle & fill accordingly
+ * @param[in] path where the configuration file is expected
+ * @param[in] type role currently being acted as
+ *
+ * @return 0 or negative value (-1 or -errno) on error
+ */
+int read_config(struct booth_config **conf, const char *path, int type);
 
 int check_config(int type);
 
