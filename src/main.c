@@ -404,7 +404,7 @@ static int setup_config(struct booth_config **conf, int type)
 		find_myself(NULL, type == CLIENT || type == GEOSTORE);
 
 
-	rv = check_config(type);
+	rv = check_config(booth_conf, type);
 	if (rv < 0)
 		goto out;
 
