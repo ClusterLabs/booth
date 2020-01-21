@@ -98,8 +98,7 @@ static int find_address(unsigned char ipaddr[BOOTH_IPADDR_LEN],
 	/* One bit left to check means ignore 7 lowest bits. */
 	mask = ~( (1 << (8 - bits_left)) -1);
 
-	for (i = 0; i < booth_conf->site_count; i++) {
-		node = booth_conf->site + i;
+	foreach_node(i, node) {
 		if (family != node->family)
 			continue;
 		n_a = node_to_addr_pointer(node);

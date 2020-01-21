@@ -161,7 +161,7 @@ static int is_tie(struct ticket_config *tk)
 	int count[MAX_NODES] = { 0, };
 	int max_votes = 0, max_cnt = 0;
 
-	for(i=0; i<booth_conf->site_count; i++) {
+	for (i = 0; i < booth_conf->site_count; i++) {
 		v = tk->votes_for[i];
 		if (!v)
 			continue;
@@ -169,7 +169,7 @@ static int is_tie(struct ticket_config *tk)
 		max_votes = max(max_votes, count[v->index]);
 	}
 
-	for(i=0; i<booth_conf->site_count; i++) {
+	for (i = 0; i < booth_conf->site_count; i++) {
 		if (count[i] == max_votes)
 			max_cnt++;
 	}
@@ -183,8 +183,7 @@ static struct booth_site *majority_votes(struct ticket_config *tk)
 	struct booth_site *v;
 	int count[MAX_NODES] = { 0, };
 
-
-	for(i=0; i<booth_conf->site_count; i++) {
+	for (i = 0; i < booth_conf->site_count; i++) {
 		v = tk->votes_for[i];
 		if (!v || v == no_leader)
 			continue;

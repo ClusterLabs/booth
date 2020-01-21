@@ -59,16 +59,16 @@ int check_max_len_valid(const char *s, int max)
 
 int find_ticket_by_name(const char *ticket, struct ticket_config **found)
 {
+	struct ticket_config *tk;
 	int i;
 
 	if (found)
 		*found = NULL;
 
-	for (i = 0; i < booth_conf->ticket_count; i++) {
-		if (!strncmp(booth_conf->ticket[i].name, ticket,
-			     sizeof(booth_conf->ticket[i].name))) {
+	foreach_ticket(i, tk) {
+		if (!strncmp(tk->name, ticket, sizeof(tk->name))) {
 			if (found)
-				*found = booth_conf->ticket + i;
+				*found = tk;
 			return 1;
 		}
 	}
@@ -392,6 +392,7 @@ int do_revoke_ticket(struct ticket_config *tk)
 int list_ticket(char **pdata, unsigned int *len)
 {
 	struct ticket_config *tk;
+	struct booth_site *site;
 	char timeout_str[64];
 	char pending_str[64];
 	char *data, *cp;
@@ -476,12 +477,12 @@ int list_ticket(char **pdata, unsigned int *len)
 					"\nWARNING: The ticket %s is granted to multiple sites: ",  // ~55 characters
 					tk->name);
 
-			for(site_index=0; site_index<booth_conf->site_count; ++site_index) {
+			foreach_node(site_index, site) {
 				if (tk->sites_where_granted[site_index] > 0) {
 					cp += snprintf(cp,
 						alloc - (cp - data),
 						"%s",
-						site_string(&(booth_conf->site[site_index])));
+						site_string(site));
 
 					if (--multiple_grant_warning_length > 0) {
 						cp += snprintf(cp,
@@ -859,8 +860,7 @@ static void log_lost_servers(struct ticket_config *tk)
 		 */
 		return;
 
-	for (i = 0; i < booth_conf->site_count; i++) {
-		n = booth_conf->site + i;
+	foreach_node(i, n) {
 		if (!(tk->acks_received & n->bitmask)) {
 			tk_log_warn("%s %s didn't acknowledge our %s, "
 			"will retry %d times",
@@ -880,8 +880,7 @@ static void resend_msg(struct ticket_config *tk)
 	if (!(tk->acks_received ^ local->bitmask)) {
 		ticket_broadcast(tk, tk->last_request, 0, RLT_SUCCESS, 0);
 	} else {
-		for (i = 0; i < booth_conf->site_count; i++) {
-			n = booth_conf->site + i;
+		foreach_node(i, n) {
 			if (!(tk->acks_received & n->bitmask)) {
 				n->resend_cnt++;
 				tk_log_debug("resending %s to %s",
@@ -1365,8 +1364,9 @@ int is_manual(struct ticket_config *tk)
 int number_sites_marked_as_granted(struct ticket_config *tk)
 {
 	int i, result = 0;
+	struct booth_site *ignored __attribute__((unused));
 
-	for(i=0; i<booth_conf->site_count; ++i) {
+	foreach_node(i, ignored) {
 		result += tk->sites_where_granted[i];
 	}
 

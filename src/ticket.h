@@ -35,8 +35,15 @@ extern int TIME_RES;
 #define DEFAULT_RETRIES			10
 
 
-#define foreach_ticket(i_,t_) for(i_=0; (t_=booth_conf->ticket+i_, i_<booth_conf->ticket_count); i_++)
-#define foreach_node(i_,n_) for(i_=0; (n_=booth_conf->site+i_, i_<booth_conf->site_count); i_++)
+#define foreach_ticket(i_, t_) \
+	for (i_ = 0; \
+	     (t_ = booth_conf->ticket + i_, i_ < booth_conf->ticket_count); \
+	     i_++)
+
+#define foreach_node(i_, n_) \
+	for (i_ = 0; \
+	     (n_ = booth_conf->site + i_, i_ < booth_conf->site_count); \
+	     i_++)
 
 #define set_leader(tk, who) do { \
 	if (who == NULL) { \
