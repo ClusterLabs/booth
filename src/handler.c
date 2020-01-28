@@ -130,7 +130,7 @@ void wait_child(int sig)
 	int i, status;
 	struct ticket_config *tk;
 
-	/* use waitpid(2) and not wait(2) in order not to interfear
+	/* use waitpid(2) and not wait(2) in order not to interfere
 	 * with popen(2)/pclose(2) and system(2) used in pacemaker.c
 	 */
 	foreach_ticket(i, tk) {
