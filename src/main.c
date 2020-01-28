@@ -233,7 +233,7 @@ static int format_peers(char **pdata, unsigned int *len)
 		return -ENOMEM;
 
 	cp = data;
-	foreach_node(i, s) {
+	FOREACH_NODE(i, s) {
 		if (s == local)
 			continue;
 		strftime(time_str, sizeof(time_str), "%F %T",

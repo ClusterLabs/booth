@@ -133,7 +133,7 @@ void wait_child(int sig)
 	/* use waitpid(2) and not wait(2) in order not to interfere
 	 * with popen(2)/pclose(2) and system(2) used in pacemaker.c
 	 */
-	foreach_ticket(i, tk) {
+	FOREACH_TICKET(i, tk) {
 		if (tk_test.path && tk_test.pid > 0 &&
 				(tk_test.progstate == EXTPROG_RUNNING ||
 				tk_test.progstate == EXTPROG_IGNORE) &&
