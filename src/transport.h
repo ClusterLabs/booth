@@ -45,32 +45,69 @@ typedef enum {
 
 struct booth_transport {
 	const char *name;
-	int (*init) (void *);
+	int (*init) (struct booth_config *, void *);
 	int (*open) (struct booth_site *);
-	int (*send) (struct booth_site *, void *, int);
-	int (*send_auth) (struct booth_site *, void *, int);
+	int (*send) (struct booth_config *, struct booth_site *, void *, int);
+	int (*send_auth) (struct booth_config *, struct booth_site *, void *, int);
 	int (*recv) (struct booth_site *, void *, int);
-	int (*recv_auth) (struct booth_site *, void *, int);
+	int (*recv_auth) (struct booth_config *, struct booth_site *, void *, int);
 	int (*broadcast) (void *, int);
-	int (*broadcast_auth) (void *, int);
+	int (*broadcast_auth) (struct booth_config *, void *, int);
 	int (*close) (struct booth_site *);
 	int (*exit) (void);
 };
 
-extern const struct booth_transport booth_transport[TRANSPORT_ENTRIES];
-int find_myself(struct booth_site **me, int fuzzy_allowed);
+typedef struct booth_transport booth_transport_table_t[TRANSPORT_ENTRIES];
 
-int read_client(struct client *req_cl);
+/**
+ * @internal
+ * Attempts to pick identity of self from config-tracked enumeration of sites
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] fuzzy_allowed whether it's OK to approximate the match
+ *
+ * @return 0 on success or negative value (-1 or -errno) on error
+ */
+int find_myself(struct booth_config *conf_ptr, int fuzzy_allowed);
+
 int check_boothc_header(struct boothc_header *data, int len_incl_data);
 
-int setup_tcp_listener(int test_only);
-int booth_udp_send(struct booth_site *to, void *buf, int len);
-int booth_udp_send_auth(struct booth_site *to, void *buf, int len);
+/**
+ * @internal
+ * Setup the TCP listener/server
+ *
+ * @param[in] local thix verysite
+ * @param[in] test_only whether to just check if binding is clear
+ *
+ * @return 0 on success or -1 or errno on error
+ */
+int setup_tcp_listener(struct booth_site *local, int test_only);
 
-int booth_tcp_open(struct booth_site *to);
-int booth_tcp_send(struct booth_site *to, void *buf, int len);
+/**
+ * @internal
+ * Send data, with authentication added
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] to site structure of the recipient
+ * @param[in] buf message itself
+ * @param[in] len lenght of #buf
+ *
+ * @return see @add_hmac and @booth_udp_send
+ */
+int booth_udp_send_auth(struct booth_config *conf_ptr, struct booth_site *to,
+                        void *buf, int len);
 
-int message_recv(void *msg, int msglen);
+/**
+ * @internal
+ * First stage of incoming datagram handling (authentication)
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] msg raw message to act upon
+ * @param[in] msglen lenght of #msg
+ *
+ * @return 0 on success or negative value (-1 or -errno) on error
+ */
+int message_recv(struct booth_config *conf_ptr, void *msg, int msglen);
 
 inline static void * node_to_addr_pointer(struct booth_site *node) {
 	switch (node->family) {
@@ -80,11 +117,48 @@ inline static void * node_to_addr_pointer(struct booth_site *node) {
 	return NULL;
 }
 
-int send_data(int fd, void *data, int datalen);
-int send_header_plus(int fd, struct boothc_hdr_msg *hdr, void *data, int len);
-#define send_client_msg(fd, msg) send_data(fd, msg, sendmsglen(msg))
+/**
+ * @internal
+ * Send data, with authentication added
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] fd descriptor of the socket to respond to
+ * @param[in] data message itself
+ * @param[in] datalen lenght of #data
+ *
+ * @return 0 on success or negative value (-1 or -errno) on error
+ */
+int send_data(struct booth_config *conf_ptr, int fd, void *data, int datalen);
 
-int add_hmac(void *data, int len);
-int check_auth(struct booth_site *from, void *buf, int len);
+/**
+ * @internal
+ * First stage of incoming datagram handling (authentication)
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] fd descriptor of the socket to respond to
+ * @param[in] hdr message header
+ * @param[in] data message itself
+ * @param[in] len lengh of @data
+ *
+ * @return see #send_data and #do_write
+ */
+int send_header_plus(struct booth_config *conf_ptr, int fd,
+                     struct boothc_hdr_msg *hdr, void *data, int len);
+
+#define send_client_msg(bc, fd, msg) send_data(bc, fd, msg, sendmsglen(msg))
+
+/**
+ * @internal
+ * First stage of incoming datagram handling (authentication)
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] from site structure of the sender
+ * @param[in] buf message to check
+ * @param[in] len lengh of @buf
+ *
+ * @return see #send_data and #do_write
+ */
+int check_auth(struct booth_config *conf_ptr, struct booth_site *from,
+               void *buf, int len);
 
 #endif /* _TRANSPORT_H */

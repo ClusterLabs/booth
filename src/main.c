@@ -65,6 +65,7 @@
 #include "inline-fn.h"
 #include "pacemaker.h"
 #include "ticket.h"
+#include "utils.h"
 #include "request.h"
 #include "attr.h"
 #include "handler.h"
@@ -74,10 +75,15 @@
 
 #define CLIENT_NALLOC		32
 
+extern const booth_transport_table_t booth__transport;
+extern struct ticket_handler booth__pcmk_ticket_handler;
+
 static int daemonize = 1;
 int enable_stderr = 0;
 timetype start_time;
 
+static struct booth_config *booth_conf;
+static struct command_line cmd_line;
 
 /** Structure for "clients".
  * Filehandles with incoming data get registered here (and in pollfds),
@@ -89,26 +95,11 @@ struct pollfd *pollfds = NULL;
 static int client_maxi;
 static int client_size = 0;
 
-
-static const struct booth_site _no_leader = {
-	.addr_string = "none",
-	.site_id = NO_ONE,
-	.index = -1,
-};
-struct booth_site *const no_leader = (struct booth_site*) &_no_leader;
-
 typedef enum
 {
 	BOOTHD_STARTED=0,
 	BOOTHD_STARTING
 } BOOTH_DAEMON_STATE;
-
-int poll_timeout;
-
-
-
-struct booth_config *booth_conf;
-struct command_line cl;
 
 static void client_alloc(void)
 {
@@ -155,7 +146,7 @@ static void client_dead(int ci)
 }
 
 int client_add(int fd, const struct booth_transport *tpt,
-		void (*workfn)(int ci),
+		void (*workfn)(struct booth_config *conf_ptr, int ci),
 		void (*deadfn)(int ci))
 {
 	int i;
@@ -207,24 +198,28 @@ int find_client_by_fd(int fd)
 	return -1;
 }
 
-static int format_peers(char **pdata, unsigned int *len)
+static int format_peers(struct booth_config *conf_ptr,
+                        char **pdata, unsigned int *len)
 {
 	struct booth_site *s;
 	char *data, *cp;
 	char time_str[64];
 	int i, alloc;
 
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
+
 	*pdata = NULL;
 	*len = 0;
 
-	alloc = booth_conf->site_count * (BOOTH_NAME_LEN + 256);
+	alloc = conf_ptr->site_count * (BOOTH_NAME_LEN + 256);
 	data = malloc(alloc);
 	if (!data)
 		return -ENOMEM;
 
 	cp = data;
-	foreach_node(i, s) {
-		if (s == local)
+	FOREACH_NODE(conf_ptr, i, s) {
+		if (s == conf_ptr->local)
 			continue;
 		strftime(time_str, sizeof(time_str), "%F %T",
 			localtime(&s->last_recv));
@@ -259,18 +254,18 @@ static int format_peers(char **pdata, unsigned int *len)
 	return 0;
 }
 
-
-void list_peers(int fd)
+void list_peers(struct booth_config *conf_ptr, int fd)
 {
 	char *data;
 	unsigned int olen;
 	struct boothc_hdr_msg hdr;
 
-	if (format_peers(&data, &olen) < 0)
+	if (format_peers(conf_ptr, &data, &olen) < 0)
 		goto out;
 
-	init_header(&hdr.header, CL_LIST, 0, 0, RLT_SUCCESS, 0, sizeof(hdr) + olen);
-	(void)send_header_plus(fd, &hdr, data, olen);
+	init_header(conf_ptr, &hdr.header, CL_LIST, 0, 0, RLT_SUCCESS,
+	            0, sizeof(hdr) + olen);
+	(void) send_header_plus(conf_ptr, fd, &hdr, data, olen);
 
 out:
 	if (data)
@@ -279,86 +274,97 @@ out:
 
 /* trim trailing spaces if the key is ascii
  */
-static void trim_key()
+static void trim_key(struct booth_config *conf_ptr)
 {
 	char *p;
 	int i;
 
-	for (i=0, p=booth_conf->authkey; i < booth_conf->authkey_len; i++, p++)
+	assert(conf_ptr != NULL);
+
+	for (i = 0, p = conf_ptr->authkey; i < conf_ptr->authkey_len; i++, p++)
 		if (!isascii(*p))
 			return;
 
-	p = booth_conf->authkey;
-	while (booth_conf->authkey_len > 0 && isspace(*p)) {
+	p = conf_ptr->authkey;
+	while (conf_ptr->authkey_len > 0 && isspace(*p)) {
 		p++;
-		booth_conf->authkey_len--;
+		conf_ptr->authkey_len--;
 	}
-	memmove(booth_conf->authkey, p, booth_conf->authkey_len);
+	memmove(conf_ptr->authkey, p, conf_ptr->authkey_len);
 
-	p = booth_conf->authkey + booth_conf->authkey_len - 1;
-	while (booth_conf->authkey_len > 0 && isspace(*p)) {
-		booth_conf->authkey_len--;
+	p = conf_ptr->authkey + conf_ptr->authkey_len - 1;
+	while (conf_ptr->authkey_len > 0 && isspace(*p)) {
+		conf_ptr->authkey_len--;
 		p--;
 	}
 }
 
-static int read_authkey()
+static int read_authkey(struct booth_config *conf_ptr)
 {
 	int fd;
 
-	booth_conf->authkey[0] = '\0';
-	fd = open(booth_conf->authfile, O_RDONLY);
+	assert(conf_ptr != NULL);
+
+	conf_ptr->authkey[0] = '\0';
+	fd = open(conf_ptr->authfile, O_RDONLY);
 	if (fd < 0) {
 		log_error("cannot open %s: %s",
-			booth_conf->authfile, strerror(errno));
+			conf_ptr->authfile, strerror(errno));
 		return -1;
 	}
-	if (fstat(fd, &booth_conf->authstat) < 0) {
+	if (fstat(fd, &conf_ptr->authstat) < 0) {
 		log_error("cannot stat authentication file %s (%d): %s",
-			booth_conf->authfile, fd, strerror(errno));
+			conf_ptr->authfile, fd, strerror(errno));
 		close(fd);
 		return -1;
 	}
-	if (booth_conf->authstat.st_mode & (S_IRGRP | S_IROTH)) {
+	if (conf_ptr->authstat.st_mode & (S_IRGRP | S_IROTH)) {
 		log_error("%s: file shall not be readable for anyone but the owner",
-			booth_conf->authfile);
+			conf_ptr->authfile);
 		close(fd);
 		return -1;
 	}
-	booth_conf->authkey_len = read(fd, booth_conf->authkey, BOOTH_MAX_KEY_LEN);
+	conf_ptr->authkey_len = read(fd, conf_ptr->authkey, BOOTH_MAX_KEY_LEN);
 	close(fd);
-	trim_key();
+	trim_key(conf_ptr);
 	log_debug("read key of size %d in authfile %s",
-		booth_conf->authkey_len, booth_conf->authfile);
+		conf_ptr->authkey_len, conf_ptr->authfile);
 	/* make sure that the key is of minimum length */
-	return (booth_conf->authkey_len >= BOOTH_MIN_KEY_LEN) ? 0 : -1;
+	return (conf_ptr->authkey_len >= BOOTH_MIN_KEY_LEN) ? 0 : -1;
 }
 
-int update_authkey()
+/* XXX UNUSED */
+int update_authkey(struct booth_config *conf_ptr)
 {
 	struct stat statbuf;
 
-	if (stat(booth_conf->authfile, &statbuf) < 0) {
+	assert(conf_ptr != NULL);
+
+	if (stat(conf_ptr->authfile, &statbuf) < 0) {
 		log_error("cannot stat authentication file %s: %s",
-			booth_conf->authfile, strerror(errno));
+			conf_ptr->authfile, strerror(errno));
 		return -1;
 	}
-	if (statbuf.st_mtime > booth_conf->authstat.st_mtime) {
-		return read_authkey();
+	if (statbuf.st_mtime > conf_ptr->authstat.st_mtime) {
+		return read_authkey(conf_ptr);
 	}
 	return 0;
 }
 
-static int setup_config(int type)
+static int setup_config(struct command_line *cl, struct booth_config **conf_pptr)
 {
 	int rv;
 
-	rv = read_config(cl.configfile, type);
+	assert(conf_pptr != NULL);
+
+	rv = read_config(conf_pptr, &booth__transport,
+	                 &booth__pcmk_ticket_handler, cl->configfile,
+	                 cl->type);
 	if (rv < 0)
 		goto out;
 
-	if (is_auth_req()) {
-		rv = read_authkey();
+	if (is_auth_req(*conf_pptr)) {
+		rv = read_authkey(*conf_pptr);
 		if (rv < 0)
 			goto out;
 #if HAVE_LIBGCRYPT
@@ -373,44 +379,49 @@ static int setup_config(int type)
 	}
 
 	/* Set "local" pointer, ignoring errors. */
-	if (cl.type == DAEMON && cl.site[0]) {
-		if (!find_site_by_name(cl.site, &local, 1)) {
+	if (cl->type == DAEMON && cl->site[0]) {
+		if (!find_site_by_name(*conf_pptr, cl->site,
+		                       &(*conf_pptr)->local, 1)) {
 			log_error("Cannot find \"%s\" in the configuration.",
-					cl.site);
+			          cl->site);
 			return -EINVAL;
 		}
-		local->local = 1;
+		(*conf_pptr)->local->local = 1;
 	} else
-		find_myself(NULL, type == CLIENT || type == GEOSTORE);
+		find_myself(*conf_pptr,
+		            cl->type == CLIENT || cl->type == GEOSTORE);
 
 
-	rv = check_config(type);
+	rv = check_config(*conf_pptr, cl->type);
 	if (rv < 0)
 		goto out;
 
 
 	/* Per default the PID file name is derived from the
 	 * configuration name. */
-	if (!cl.lockfile[0]) {
-		snprintf(cl.lockfile, sizeof(cl.lockfile)-1,
-				"%s/%s.pid", BOOTH_RUN_DIR, booth_conf->name);
+	if (!cl->lockfile[0]) {
+		snprintf(cl->lockfile, sizeof(cl->lockfile)-1,
+		         "%s/%s.pid", BOOTH_RUN_DIR, (*conf_pptr)->name);
 	}
 
 out:
 	return rv;
 }
 
-static int setup_transport(void)
+static int setup_transport(struct booth_config *conf_ptr)
 {
 	int rv;
 
-	rv = transport()->init(message_recv);
+	assert(conf_ptr != NULL && conf_ptr->transport != NULL);
+
+	rv = transport(conf_ptr)->init(conf_ptr, message_recv);
 	if (rv < 0) {
-		log_error("failed to init booth_transport %s", transport()->name);
+		log_error("failed to init booth_transport %s",
+		          transport(conf_ptr)->name);
 		goto out;
 	}
 
-	rv = booth_transport[TCP].init(NULL);
+	rv = (*conf_ptr->transport)[TCP].init(conf_ptr, NULL);
 	if (rv < 0) {
 		log_error("failed to init booth_transport[TCP]");
 		goto out;
@@ -421,29 +432,27 @@ out:
 }
 
 
-static int write_daemon_state(int fd, int state)
+static int write_daemon_state(struct command_line *cl,
+                              struct booth_config *conf_ptr, int fd, int state)
 {
 	char buffer[1024];
 	int rv, size;
 
 	size = sizeof(buffer) - 1;
 	rv = snprintf(buffer, size,
-			"booth_pid=%d "
-			"booth_state=%s "
-			"booth_type=%s "
-			"booth_cfg_name='%s' "
-			"booth_id=%d "
-			"booth_addr_string='%s' "
-			"booth_port=%d\n",
-		getpid(), 
-		( state == BOOTHD_STARTED  ? "started"  : 
-		  state == BOOTHD_STARTING ? "starting" : 
-		  "invalid"), 
-		type_to_string(local->type),
-		booth_conf->name,
-		local->site_id,
-		local->addr_string,
-		booth_conf->port);
+	              "booth_pid=%d "
+	              "booth_state=%s "
+	              "booth_type=%s "
+	              "booth_cfg_name='%s' "
+	              "booth_id=%d "
+	              "booth_addr_string='%s' "
+	              "booth_port=%d\n",
+	              getpid(),
+	              ( state == BOOTHD_STARTED  ? "started"  :
+	                  state == BOOTHD_STARTING ? "starting" : "invalid"),
+	              type_to_string(conf_ptr->local->type), conf_ptr->name,
+	              get_local_id(conf_ptr), site_string(conf_ptr->local),
+	              site_port(conf_ptr->local));
 
 	if (rv < 0 || rv == size) {
 		log_error("Buffer filled up in write_daemon_state().");
@@ -455,7 +464,7 @@ static int write_daemon_state(int fd, int state)
 	rv = ftruncate(fd, 0);
 	if (rv < 0) {
 		log_error("lockfile %s truncate error %d: %s",
-				cl.lockfile, errno, strerror(errno));
+		          cl->lockfile, errno, strerror(errno));
 		return rv;
 	}
 
@@ -481,33 +490,34 @@ static int write_daemon_state(int fd, int state)
 	return 0;
 }
 
-static int loop(int fd)
+static int loop(struct command_line *cl, struct booth_config *conf_ptr, int fd)
 {
-	void (*workfn) (int ci);
+	void (*workfn) (struct booth_config *conf_ptr, int ci);
 	void (*deadfn) (int ci);
 	int rv, i;
 
-	rv = setup_transport();
+	rv = setup_transport(conf_ptr);
 	if (rv < 0)
 		goto fail;
 
-	rv = setup_ticket();
+	rv = setup_ticket(conf_ptr);
 	if (rv < 0)
 		goto fail;
 
-	rv = write_daemon_state(fd, BOOTHD_STARTED);
+	rv = write_daemon_state(cl, conf_ptr, fd, BOOTHD_STARTED);
 	if (rv != 0) {
 		log_error("write daemon state %d to lockfile error %s: %s",
-                      BOOTHD_STARTED, cl.lockfile, strerror(errno));
+		          BOOTHD_STARTED, cl->lockfile, strerror(errno));
 		goto fail;
 	}
 
 	log_info("BOOTH %s daemon started, node id is 0x%08X (%d).",
-		type_to_string(local->type),
-			local->site_id, local->site_id);
+		type_to_string(conf_ptr->local->type),
+		               conf_ptr->local->site_id,
+		               conf_ptr->local->site_id);
 
 	while (1) {
-		rv = poll(pollfds, client_maxi + 1, poll_timeout);
+		rv = poll(pollfds, client_maxi + 1, conf_ptr->poll_timeout);
 		if (rv == -1 && errno == EINTR)
 			continue;
 		if (rv < 0) {
@@ -522,7 +532,7 @@ static int loop(int fd)
 			if (pollfds[i].revents & POLLIN) {
 				workfn = clients[i].workfn;
 				if (workfn)
-					workfn(i);
+					workfn(conf_ptr, i);
 			}
 			if (pollfds[i].revents &
 					(POLLERR | POLLHUP | POLLNVAL)) {
@@ -532,7 +542,7 @@ static int loop(int fd)
 			}
 		}
 
-		process_tickets();
+		process_tickets(conf_ptr);
 	}
 
 	return 0;
@@ -542,18 +552,18 @@ fail:
 }
 
 
-static int test_reply(cmd_result_t reply_code, cmd_request_t cmd)
+static int test_reply(struct command_line *cl, cmd_result_t reply_code)
 {
 	int rv = 0;
 	const char *op_str = "";
 
-	if (cmd == CMD_GRANT)
+	if (cl->type == CMD_GRANT)
 		op_str = "grant";
-	else if (cmd == CMD_REVOKE)
+	else if (cl->type == CMD_REVOKE)
 		op_str = "revoke";
-	else if (cmd == CMD_LIST)
+	else if (cl->type == CMD_LIST)
 		op_str = "list";
-	else if (cmd == CMD_PEERS)
+	else if (cl->type == CMD_PEERS)
 		op_str = "peers";
 	else {
 		log_error("internal error reading reply result!");
@@ -583,7 +593,7 @@ static int test_reply(cmd_result_t reply_code, cmd_request_t cmd)
 	case RLT_CIB_PENDING:
 		log_info("%s succeeded (CIB commit pending)", op_str);
 		/* wait for the CIB commit? */
-		rv = (cl.options & OPT_WAIT_COMMIT) ? 3 : 0;
+		rv = (cl->options & OPT_WAIT_COMMIT) ? 3 : 0;
 		break;
 
 	case RLT_MORE:
@@ -592,7 +602,7 @@ static int test_reply(cmd_result_t reply_code, cmd_request_t cmd)
 
 	case RLT_SYNC_SUCC:
 	case RLT_SUCCESS:
-		if (cmd != CMD_LIST && cmd != CMD_PEERS)
+		if (cl->type != CMD_LIST && cl->type != CMD_PEERS)
 			log_info("%s succeeded!", op_str);
 		rv = 0;
 		break;
@@ -603,8 +613,7 @@ static int test_reply(cmd_result_t reply_code, cmd_request_t cmd)
 		break;
 
 	case RLT_INVALID_ARG:
-		log_error("ticket \"%s\" does not exist",
-				cl.msg.ticket.id);
+		log_error("ticket \"%s\" does not exist", cl->msg.ticket.id);
 		rv = -1;
 		break;
 
@@ -615,13 +624,13 @@ static int test_reply(cmd_result_t reply_code, cmd_request_t cmd)
 
 	case RLT_EXT_FAILED:
 		log_error("before-acquire-handler for ticket \"%s\" failed, grant denied",
-				cl.msg.ticket.id);
+		          cl->msg.ticket.id);
 		rv = -1;
 		break;
 
 	case RLT_ATTR_PREREQ:
 		log_error("attr-prereq for ticket \"%s\" failed, grant denied",
-				cl.msg.ticket.id);
+		          cl->msg.ticket.id);
 		rv = -1;
 		break;
 
@@ -637,7 +646,8 @@ static int test_reply(cmd_result_t reply_code, cmd_request_t cmd)
 	return rv;
 }
 
-static int query_get_string_answer(cmd_request_t cmd)
+static int query_get_string_answer(struct command_line *cl,
+                                   struct booth_config *conf_ptr)
 {
 	struct booth_site *site;
 	struct boothc_hdr_msg reply;
@@ -646,42 +656,45 @@ static int query_get_string_answer(cmd_request_t cmd)
 	int data_len;
 	int rv;
 	struct booth_transport const *tpt;
-	int (*test_reply_f) (cmd_result_t reply_code, cmd_request_t cmd);
+	int (*test_reply_f) (struct command_line *, cmd_result_t reply_code);
 	size_t msg_size;
 	void *request;
 
-	if (cl.type == GEOSTORE) {
+	assert(conf_ptr != NULL && conf_ptr->transport != NULL);
+	assert(conf_ptr->local != NULL);
+
+	if (cl->type == GEOSTORE) {
 		test_reply_f = test_attr_reply;
-		msg_size = sizeof(cl.attr_msg);
-		request = &cl.attr_msg;
+		msg_size = sizeof(cl->attr_msg);
+		request = &cl->attr_msg;
 	} else {
 		test_reply_f = test_reply;
-		msg_size = sizeof(cl.msg);
-		request = &cl.msg;
+		msg_size = sizeof(cl->msg);
+		request = &cl->msg;
 	}
 	header = (struct boothc_header *)request;
 	data = NULL;
 
-	init_header(header, cmd, 0, cl.options, 0, 0, msg_size);
+	init_header(conf_ptr, header, cl->op, 0, cl->options, 0, 0, msg_size);
 
-	if (!*cl.site)
-		site = local;
-	else if (!find_site_by_name(cl.site, &site, 1)) {
-		log_error("cannot find site \"%s\"", cl.site);
+	if (*cl->site == '\0')
+		site = conf_ptr->local;
+	else if (!find_site_by_name(conf_ptr, cl->site, &site, 1)) {
+		log_error("cannot find site \"%s\"", cl->site);
 		rv = ENOENT;
 		goto out;
 	}
 
-	tpt = booth_transport + TCP;
+	tpt = *conf_ptr->transport + TCP;
 	rv = tpt->open(site);
 	if (rv < 0)
 		goto out_close;
 
-	rv = tpt->send(site, request, msg_size);
+	rv = tpt->send(conf_ptr, site, request, msg_size);
 	if (rv < 0)
 		goto out_close;
 
-	rv = tpt->recv_auth(site, &reply, sizeof(reply));
+	rv = tpt->recv_auth(conf_ptr, site, &reply, sizeof(reply));
 	if (rv < 0)
 		goto out_close;
 
@@ -708,7 +721,7 @@ static int query_get_string_answer(cmd_request_t cmd)
 	rv = 0;
 
 out_test_reply:
-	rv = test_reply_f(ntohl(reply.header.result), cmd);
+	rv = test_reply_f(cl, ntohl(reply.header.result));
 out_close:
 	tpt->close(site);
 out:
@@ -718,7 +731,7 @@ out:
 }
 
 
-static int do_command(cmd_request_t cmd)
+static int do_command(struct command_line *cl, struct booth_config *conf_ptr)
 {
 	struct booth_site *site;
 	struct boothc_ticket_msg reply;
@@ -728,31 +741,34 @@ static int do_command(cmd_request_t cmd)
 	int reply_cnt = 0, msg_logged = 0;
 	const char *op_str = "";
 
-	if (cmd == CMD_GRANT)
+	assert(conf_ptr != NULL && conf_ptr->transport != NULL);
+
+	if (cl->type == CMD_GRANT)
 		op_str = "grant";
-	else if (cmd == CMD_REVOKE)
+	else if (cl->type == CMD_REVOKE)
 		op_str = "revoke";
 
 	rv = 0;
 	site = NULL;
 
 	/* Always use TCP for client - at least for now. */
-	tpt = booth_transport + TCP;
+	tpt = *conf_ptr->transport + TCP;
 
-	if (!*cl.site)
-		site = local;
+	if (*cl->site == '\0')
+		site = conf_ptr->local;
 	else {
-		if (!find_site_by_name(cl.site, &site, 1)) {
-			log_error("Site \"%s\" not configured.", cl.site);
+		if (!find_site_by_name(conf_ptr, cl->site, &site, 1)) {
+			log_error("Site \"%s\" not configured.", cl->site);
 			goto out_close;
 		}
 	}
 
 	if (site->type == ARBITRATOR) {
-		if (site == local) {
+		if (site == conf_ptr->local) {
 			log_error("We're just an arbitrator, cannot grant/revoke tickets here.");
 		} else {
-			log_error("%s is just an arbitrator, cannot grant/revoke tickets there.", cl.site);
+			log_error("%s is just an arbitrator, cannot grant/revoke tickets there.",
+			          cl->site);
 		}
 		goto out_close;
 	}
@@ -762,11 +778,11 @@ static int do_command(cmd_request_t cmd)
 	/* We don't check for existence of ticket, so that asking can be
 	 * done without local configuration, too.
 	 * Although, that means that the UDP port has to be specified, too. */
-	if (!cl.msg.ticket.id[0]) {
+	if (!cl->msg.ticket.id[0]) {
 		/* If the loaded configuration has only a single ticket defined, use that. */
-		if (booth_conf->ticket_count == 1) {
-			strncpy(cl.msg.ticket.id, booth_conf->ticket[0].name,
-				sizeof(cl.msg.ticket.id));
+		if (conf_ptr->ticket_count == 1) {
+			strncpy(cl->msg.ticket.id, conf_ptr->ticket[0].name,
+				sizeof(cl->msg.ticket.id));
 		} else {
 			log_error("No ticket given.");
 			goto out_close;
@@ -774,30 +790,31 @@ static int do_command(cmd_request_t cmd)
 	}
 
 redirect:
-	init_header(&cl.msg.header, cmd, 0, cl.options, 0, 0, sizeof(cl.msg));
+	init_header(conf_ptr, &cl->msg.header, cl->type, 0, cl->options, 0, 0,
+	            sizeof(cl->msg));
 
 	rv = tpt->open(site);
 	if (rv < 0)
 		goto out_close;
 
-	rv = tpt->send(site, &cl.msg, sendmsglen(&cl.msg));
+	rv = tpt->send(conf_ptr, site, &cl->msg, sendmsglen(&cl->msg));
 	if (rv < 0)
 		goto out_close;
 
 read_more:
-	rv = tpt->recv_auth(site, &reply, sizeof(reply));
+	rv = tpt->recv_auth(conf_ptr, site, &reply, sizeof(reply));
 	if (rv < 0) {
 		/* print any errors depending on the code sent by the
 		 * server */
-		(void)test_reply(ntohl(reply.header.result), cmd);
+		(void) test_reply(cl, ntohl(reply.header.result));
 		goto out_close;
 	}
 
-	rv = test_reply(ntohl(reply.header.result), cmd);
+	rv = test_reply(cl, ntohl(reply.header.result));
 	if (rv == 1) {
 		tpt->close(site);
 		leader_id = ntohl(reply.ticket.leader);
-		if (!find_site_by_id(leader_id, &site)) {
+		if (!find_site_by_id(conf_ptr, leader_id, &site)) {
 			log_error("Message with unknown redirect site %x received", leader_id);
 			rv = -1;
 			goto out_close;
@@ -806,7 +823,7 @@ read_more:
 	} else if (rv == 2 || rv == 3) {
 		/* the server has more to say */
 		/* don't wait too long */
-		if (reply_cnt > 1 && !(cl.options & OPT_WAIT)) {
+		if (reply_cnt > 1 && !(cl->options & OPT_WAIT)) {
 			rv = 0;
 			log_info("Giving up on waiting for the definite result. "
 				 "Please use \"booth list\" later to "
@@ -833,7 +850,8 @@ out_close:
 
 
 
-static int _lockfile(int mode, int *fdp, pid_t *locked_by)
+static int _lockfile(struct command_line *cl, int mode, int *fdp,
+                     pid_t *locked_by)
 {
 	struct flock lock;
 	int fd, rv;
@@ -841,7 +859,7 @@ static int _lockfile(int mode, int *fdp, pid_t *locked_by)
 
 	/* After reboot the directory may not yet exist.
 	 * Try to create it, but ignore errors. */
-	if (strncmp(cl.lockfile, BOOTH_RUN_DIR,
+	if (strncmp(cl->lockfile, BOOTH_RUN_DIR,
 				strlen(BOOTH_RUN_DIR)) == 0)
 		mkdir(BOOTH_RUN_DIR, 0775);
 
@@ -850,7 +868,7 @@ static int _lockfile(int mode, int *fdp, pid_t *locked_by)
 		*locked_by = 0;
 
 	*fdp = -1;
-	fd = open(cl.lockfile, mode, 0664);
+	fd = open(cl->lockfile, mode, 0664);
 	if (fd < 0)
 		return errno;
 
@@ -882,34 +900,35 @@ static inline int is_root(void)
 }
 
 
-static int create_lockfile(void)
+static int create_lockfile(struct command_line *cl,
+                           struct booth_config *conf_ptr)
 {
 	int rv, fd;
 
 	fd = -1;
-	rv = _lockfile(O_CREAT | O_WRONLY, &fd, NULL);
+	rv = _lockfile(cl, O_CREAT | O_WRONLY, &fd, NULL);
 
 	if (fd == -1) {
 		log_error("lockfile %s open error %d: %s",
-				cl.lockfile, rv, strerror(rv));
+		          cl->lockfile, rv, strerror(rv));
 		return -1;
 	}
 
 	if (rv < 0) {
 		log_error("lockfile %s setlk error %d: %s",
-				cl.lockfile, rv, strerror(rv));
+		          cl->lockfile, rv, strerror(rv));
 		goto fail;
 	}
 
-	rv = write_daemon_state(fd, BOOTHD_STARTING);
+	rv = write_daemon_state(cl, conf_ptr, fd, BOOTHD_STARTING);
 	if (rv != 0) {
 		log_error("write daemon state %d to lockfile error %s: %s",
-				BOOTHD_STARTING, cl.lockfile, strerror(errno));
+		          BOOTHD_STARTING, cl->lockfile, strerror(errno));
 		goto fail;
 	}
 
 	if (is_root()) {
-		if (fchown(fd, booth_conf->uid, booth_conf->gid) < 0)
+		if (fchown(fd, conf_ptr->uid, conf_ptr->gid) < 0)
 			log_error("fchown() on lockfile said %d: %s",
 					errno, strerror(errno));
 	}
@@ -923,7 +942,7 @@ fail:
 
 static void unlink_lockfile(int fd)
 {
-	unlink(cl.lockfile);
+	unlink(cmd_line.lockfile);
 	close(fd);
 }
 
@@ -965,18 +984,6 @@ static void print_usage(void)
 #define OPTION_STRING		"c:Dl:t:s:FhSwC"
 #define ATTR_OPTION_STRING		"c:Dt:s:h"
 
-void safe_copy(char *dest, char *value, size_t buflen, const char *description) {
-	int content_len = buflen - 1;
-
-	if (strlen(value) >= content_len) {
-		fprintf(stderr, "'%s' exceeds maximum %s length of %d\n",
-			value, description, content_len);
-		exit(EXIT_FAILURE);
-	}
-	strncpy(dest, value, content_len);
-	dest[content_len] = 0;
-}
-
 static int host_convert(char *hostname, char *ip_str, size_t ip_size)
 {
 	struct addrinfo *result = NULL, hints = {0};
@@ -1007,7 +1014,7 @@ static int host_convert(char *hostname, char *ip_str, size_t ip_size)
 	optind++; \
 } while(0)
 
-static int read_arguments(int argc, char **argv)
+static int read_arguments(struct command_line *cl, int argc, char **argv)
 {
 	int optchar;
 	char *arg1 = argv[1];
@@ -1017,10 +1024,10 @@ static int read_arguments(int argc, char **argv)
 	char site_arg[INET_ADDRSTRLEN] = {0};
 	int left;
 
-	cl.type = 0;
+	cl->type = 0;
 	if ((cp = strstr(argv[0], ATTR_PROG)) &&
 			!strcmp(cp, ATTR_PROG)) {
-		cl.type = GEOSTORE;
+		cl->type = GEOSTORE;
 		op = argv[1];
 		optind = 2;
 		opt_string = ATTR_OPTION_STRING;
@@ -1028,13 +1035,13 @@ static int read_arguments(int argc, char **argv)
 			strcmp(arg1, "site") == 0 ||
 			strcmp(arg1, "start") == 0 ||
 			strcmp(arg1, "daemon") == 0)) {
-		cl.type = DAEMON;
+		cl->type = DAEMON;
 		optind = 2;
 	} else if (argc > 1 && (strcmp(arg1, "status") == 0)) {
-		cl.type = STATUS;
+		cl->type = STATUS;
 		optind = 2;
 	} else if (argc > 1 && (strcmp(arg1, "client") == 0)) {
-		cl.type = CLIENT;
+		cl->type = CLIENT;
 		if (argc < 3) {
 			print_usage();
 			exit(EXIT_FAILURE);
@@ -1042,15 +1049,15 @@ static int read_arguments(int argc, char **argv)
 		op = argv[2];
 		optind = 3;
 	}
-	if (!cl.type) {
-		cl.type = CLIENT;
+	if (!cl->type) {
+		cl->type = CLIENT;
 		op = argv[1];
 		optind = 2;
     }
 
 	if (argc < 2 || !strcmp(arg1, "help") || !strcmp(arg1, "--help") ||
 			!strcmp(arg1, "-h")) {
-		if (cl.type == GEOSTORE)
+		if (cl->type == GEOSTORE)
 			print_geostore_usage();
 		else
 			print_usage();
@@ -1063,29 +1070,29 @@ static int read_arguments(int argc, char **argv)
 		exit(EXIT_SUCCESS);
 	}
 
-    if (cl.type == CLIENT) {
+    if (cl->type == CLIENT) {
 		if (!strcmp(op, "list"))
-			cl.op = CMD_LIST;
+			cl->op = CMD_LIST;
 		else if (!strcmp(op, "grant"))
-			cl.op = CMD_GRANT;
+			cl->op = CMD_GRANT;
 		else if (!strcmp(op, "revoke"))
-			cl.op = CMD_REVOKE;
+			cl->op = CMD_REVOKE;
 		else if (!strcmp(op, "peers"))
-			cl.op = CMD_PEERS;
+			cl->op = CMD_PEERS;
 		else {
 			fprintf(stderr, "client operation \"%s\" is unknown\n",
 					op);
 			exit(EXIT_FAILURE);
 		}
-	} else if (cl.type == GEOSTORE) {
+	} else if (cl->type == GEOSTORE) {
 		if (!strcmp(op, "list"))
-			cl.op = ATTR_LIST;
+			cl->op = ATTR_LIST;
 		else if (!strcmp(op, "set"))
-			cl.op = ATTR_SET;
+			cl->op = ATTR_SET;
 		else if (!strcmp(op, "get"))
-			cl.op = ATTR_GET;
+			cl->op = ATTR_GET;
 		else if (!strcmp(op, "delete"))
-			cl.op = ATTR_DEL;
+			cl->op = ATTR_DEL;
 		else {
 			fprintf(stderr, "attribute operation \"%s\" is unknown\n",
 					op);
@@ -1099,19 +1106,19 @@ static int read_arguments(int argc, char **argv)
 		switch (optchar) {
 		case 'c':
 			if (strchr(optarg, '/')) {
-				safe_copy(cl.configfile, optarg,
-						sizeof(cl.configfile), "config file");
+				safe_copy(cl->configfile, optarg,
+				          sizeof(cl->configfile), "config file");
 			} else {
 				/* If no "/" in there, use with default directory. */
-				strcpy(cl.configfile, BOOTH_DEFAULT_CONF_DIR);
-				cp = cl.configfile + strlen(BOOTH_DEFAULT_CONF_DIR);
-				assert(cp > cl.configfile);
+				strcpy(cl->configfile, BOOTH_DEFAULT_CONF_DIR);
+				cp = cl->configfile + strlen(BOOTH_DEFAULT_CONF_DIR);
+				assert(cp > cl->configfile);
 				assert(*(cp-1) == '/');
 
 				/* Write at the \0, ie. after the "/" */
 				safe_copy(cp, optarg,
-						(sizeof(cl.configfile) -
-						 (cp -  cl.configfile) -
+						(sizeof(cl->configfile) -
+						 (cp -  cl->configfile) -
 						 strlen(BOOTH_DEFAULT_CONF_EXT)),
 						"config name");
 
@@ -1132,15 +1139,16 @@ static int read_arguments(int argc, char **argv)
 			break;
 
 		case 'l':
-			safe_copy(cl.lockfile, optarg, sizeof(cl.lockfile), "lock file");
+			safe_copy(cl->lockfile, optarg, sizeof(cl->lockfile),
+			          "lock file");
 			break;
 		case 't':
-			if (cl.op == CMD_GRANT || cl.op == CMD_REVOKE) {
-				safe_copy(cl.msg.ticket.id, optarg,
-						sizeof(cl.msg.ticket.id), "ticket name");
-			} else if (cl.type == GEOSTORE) {
-				safe_copy(cl.attr_msg.attr.tkt_id, optarg,
-						sizeof(cl.attr_msg.attr.tkt_id), "ticket name");
+			if (cl->op == CMD_GRANT || cl->op == CMD_REVOKE) {
+				safe_copy(cl->msg.ticket.id, optarg,
+				          sizeof(cl->msg.ticket.id), "ticket name");
+			} else if (cl->type == GEOSTORE) {
+				safe_copy(cl->attr_msg.attr.tkt_id, optarg,
+				          sizeof(cl->attr_msg.attr.tkt_id), "ticket name");
 			} else {
 				print_usage();
 				exit(EXIT_FAILURE);
@@ -1153,13 +1161,13 @@ static int read_arguments(int argc, char **argv)
 			 * can be set manually.
 			 * This makes it easier to start multiple processes
 			 * on one machine. */
-			if (cl.type == CLIENT || cl.type == GEOSTORE ||
-					(cl.type == DAEMON && debug_level)) {
+			if (cl->type == CLIENT || cl->type == GEOSTORE ||
+					(cl->type == DAEMON && debug_level)) {
 				if (strcmp(optarg, OTHER_SITE) &&
 						host_convert(optarg, site_arg, INET_ADDRSTRLEN) == 0) {
-					safe_copy(cl.site, site_arg, sizeof(cl.site), "site name");
+					safe_copy(cl->site, site_arg, sizeof(cl->site), "site name");
 				} else {
-					safe_copy(cl.site, optarg, sizeof(cl.site), "site name");
+					safe_copy(cl->site, optarg, sizeof(cl->site), "site name");
 				}
 			} else {
 				log_error("\"-s\" not allowed in daemon mode.");
@@ -1168,32 +1176,32 @@ static int read_arguments(int argc, char **argv)
 			break;
 
 		case 'F':
-			if (cl.type != CLIENT || cl.op != CMD_GRANT) {
+			if (cl->type != CLIENT || cl->op != CMD_GRANT) {
 				log_error("use \"-F\" only for client grant");
 				exit(EXIT_FAILURE);
 			}
-			cl.options |= OPT_IMMEDIATE;
+			cl->options |= OPT_IMMEDIATE;
 			break;
 
 		case 'w':
-			if (cl.type != CLIENT ||
-					(cl.op != CMD_GRANT && cl.op != CMD_REVOKE)) {
+			if (cl->type != CLIENT ||
+					(cl->op != CMD_GRANT && cl->op != CMD_REVOKE)) {
 				log_error("use \"-w\" only for grant and revoke");
 				exit(EXIT_FAILURE);
 			}
-			cl.options |= OPT_WAIT;
+			cl->options |= OPT_WAIT;
 			break;
 
 		case 'C':
-			if (cl.type != CLIENT || cl.op != CMD_GRANT) {
+			if (cl->type != CLIENT || cl->op != CMD_GRANT) {
 				log_error("use \"-C\" only for grant");
 				exit(EXIT_FAILURE);
 			}
-			cl.options |= OPT_WAIT | OPT_WAIT_COMMIT;
+			cl->options |= OPT_WAIT | OPT_WAIT_COMMIT;
 			break;
 
 		case 'h':
-			if (cl.type == GEOSTORE)
+			if (cl->type == GEOSTORE)
 				print_geostore_usage();
 			else
 				print_usage();
@@ -1218,14 +1226,14 @@ static int read_arguments(int argc, char **argv)
 	return 0;
 
 extra_args:
-	if (cl.type == CLIENT && !cl.msg.ticket.id[0]) {
-		cparg(cl.msg.ticket.id, "ticket name");
-	} else if (cl.type == GEOSTORE) {
-		if (cl.op != ATTR_LIST) {
-			cparg(cl.attr_msg.attr.name, "attribute name");
+	if (cl->type == CLIENT && !cl->msg.ticket.id[0]) {
+		cparg(cl->msg.ticket.id, "ticket name");
+	} else if (cl->type == GEOSTORE) {
+		if (cl->op != ATTR_LIST) {
+			cparg(cl->attr_msg.attr.name, "attribute name");
 		}
-		if (cl.op == ATTR_SET) {
-			cparg(cl.attr_msg.attr.val, "attribute value");
+		if (cl->op == ATTR_SET) {
+			cparg(cl->attr_msg.attr.val, "attribute value");
 		}
 	}
 
@@ -1291,31 +1299,31 @@ static int set_procfs_val(const char *path, const char *val)
 	return rc;
 }
 
-static int do_status(int type)
+static int do_status(struct command_line *cl, struct booth_config **conf_pptr)
 {
 	pid_t pid;
 	int rv, status_lock_fd, ret;
 	const char *reason = NULL;
 	char lockfile_data[1024], *cp;
 
+	assert(conf_pptr != NULL);
+	assert(*conf_pptr != NULL);
 
 	ret = PCMK_OCF_NOT_RUNNING;
 
-	rv = setup_config(type);
+	rv = setup_config(cl, conf_pptr);
 	if (rv) {
 		reason = "Error reading configuration.";
 		ret = PCMK_OCF_UNKNOWN_ERROR;
 		goto quit;
 	}
 
-
-	if (!local) {
+	if ((*conf_pptr)->local == NULL) {
 		reason = "No Service IP active here.";
 		goto quit;
 	}
 
-
-	rv = _lockfile(O_RDWR, &status_lock_fd, &pid);
+	rv = _lockfile(cl, O_RDWR, &status_lock_fd, &pid);
 	if (status_lock_fd == -1) {
 		reason = "No PID file.";
 		goto quit;
@@ -1350,9 +1358,7 @@ static int do_status(int type)
 	if (cp)
 		*cp = 0;
 
-
-
-	rv = setup_tcp_listener(1);
+	rv = setup_tcp_listener((*conf_pptr)->local, 1);
 	if (rv == 0) {
 		reason = "TCP port not in use.";
 		goto quit;
@@ -1360,10 +1366,11 @@ static int do_status(int type)
 
 
 	fprintf(stdout, "booth_lockfile='%s' %s\n",
-			cl.lockfile, lockfile_data);
+	        cl->lockfile, lockfile_data);
 	if (!daemonize)
 		fprintf(stderr, "Booth at %s port %d seems to be running.\n",
-				local->addr_string, booth_conf->port);
+		        site_string((*conf_pptr)->local),
+		        site_port((*conf_pptr)->local));
 	return 0;
 
 
@@ -1376,19 +1383,19 @@ quit:
 }
 
 
-static int limit_this_process(void)
+static int limit_this_process(struct booth_config *conf_ptr)
 {
 	int rv;
 	if (!is_root())
 		return 0;
 
-	if (setregid(booth_conf->gid, booth_conf->gid) < 0) {
+	if (setregid(conf_ptr->gid, conf_ptr->gid) < 0) {
 		rv = errno;
 		log_error("setregid() didn't work: %s", strerror(rv));
 		return rv;
 	}
 
-	if (setreuid(booth_conf->uid, booth_conf->uid) < 0) {
+	if (setreuid(conf_ptr->uid, conf_ptr->uid) < 0) {
 		rv = errno;
 		log_error("setreuid() didn't work: %s", strerror(rv));
 		return rv;
@@ -1419,16 +1426,23 @@ static void sig_exit_handler(int sig)
 	exit(0);
 }
 
-static int do_server(int type)
+static void wait_child_adaptor(int sig)
+{
+	wait_child(booth_conf);
+}
+
+static int do_server(struct command_line *cl, struct booth_config **conf_pptr)
 {
 	int rv = -1;
 	static char log_ent[128] = DAEMON_NAME "-";
 
-	rv = setup_config(type);
+	assert(conf_pptr != NULL);
+
+	rv = setup_config(cl, conf_pptr);
 	if (rv < 0)
 		return rv;
 
-	if (!local) {
+	if ((*conf_pptr)->local == NULL) {
 		log_error("Cannot find myself in the configuration.");
 		exit(EXIT_FAILURE);
 	}
@@ -1442,20 +1456,20 @@ static int do_server(int type)
 
 	/* The lockfile must be written to _after_ the call to daemon(), so
 	 * that the lockfile contains the pid of the daemon, not the parent. */
-	lock_fd = create_lockfile();
+	lock_fd = create_lockfile(cl, *conf_pptr);
 	if (lock_fd < 0)
 		return lock_fd;
 
 	atexit(server_exit);
 
-	strcat(log_ent, type_to_string(local->type));
+	strcat(log_ent, type_to_string((*conf_pptr)->local->type));
 	cl_log_set_entity(log_ent);
 	cl_log_enable_stderr(enable_stderr ? TRUE : FALSE);
 	cl_log_set_facility(HA_LOG_FACILITY);
 	cl_inherit_logging_environment(0);
 
 	log_info("BOOTH %s %s daemon is starting",
-			type_to_string(local->type), RELEASE_STR);
+	         type_to_string((*conf_pptr)->local->type), RELEASE_STR);
 
 	signal(SIGUSR1, (__sighandler_t)tickets_log_info);
 	signal(SIGTERM, (__sighandler_t)sig_exit_handler);
@@ -1467,14 +1481,14 @@ static int do_server(int type)
 	/* we don't want to be killed by the OOM-killer */
 	if (set_procfs_val("/proc/self/oom_score_adj", "-999"))
 		(void)set_procfs_val("/proc/self/oom_adj", "-16");
+	/* whenever changing this, sd_notify_wrapper needs to be updated! */
 	set_proc_title("%s %s %s for [%s]:%d",
-			DAEMON_NAME,
-			cl.configfile,
-			type_to_string(local->type),
-			local->addr_string,
-			booth_conf->port);
+	               DAEMON_NAME, cl->configfile,
+	               type_to_string((*conf_pptr)->local->type),
+	               site_string((*conf_pptr)->local),
+	               site_port((*conf_pptr)->local));
 
-	rv = limit_this_process();
+	rv = limit_this_process(*conf_pptr);
 	if (rv)
 		return rv;
 
@@ -1490,31 +1504,31 @@ static int do_server(int type)
 	}
 #endif
 
-	signal(SIGCHLD, (__sighandler_t)wait_child);
-	rv = loop(lock_fd);
+	signal(SIGCHLD, (__sighandler_t) wait_child_adaptor);
+	rv = loop(cl, *conf_pptr, lock_fd);
 
 	return rv;
 }
 
-static int do_client(void)
+static int do_client(struct command_line *cl, struct booth_config **conf_pptr)
 {
 	int rv;
 
-	rv = setup_config(CLIENT);
+	rv = setup_config(cl, conf_pptr);
 	if (rv < 0) {
 		log_error("cannot read config");
 		goto out;
 	}
 
-	switch (cl.op) {
+	switch (cl->op) {
 	case CMD_LIST:
 	case CMD_PEERS:
-		rv = query_get_string_answer(cl.op);
+		rv = query_get_string_answer(cl, *conf_pptr);
 		break;
 
 	case CMD_GRANT:
 	case CMD_REVOKE:
-		rv = do_command(cl.op);
+		rv = do_command(cl, *conf_pptr);
 		break;
 	}
 
@@ -1522,11 +1536,13 @@ out:
 	return rv;
 }
 
-static int do_attr(void)
+static int do_attr(struct command_line *cl, struct booth_config **conf_pptr)
 {
 	int rv = -1;
 
-	rv = setup_config(GEOSTORE);
+	assert(conf_pptr != NULL);
+
+	rv = setup_config(cl, conf_pptr);
 	if (rv < 0) {
 		log_error("cannot read config");
 		goto out;
@@ -1535,11 +1551,12 @@ static int do_attr(void)
 	/* We don't check for existence of ticket, so that asking can be
 	 * done without local configuration, too.
 	 * Although, that means that the UDP port has to be specified, too. */
-	if (!cl.attr_msg.attr.tkt_id[0]) {
+	if (!cl->attr_msg.attr.tkt_id[0]) {
 		/* If the loaded configuration has only a single ticket defined, use that. */
-		if (booth_conf->ticket_count == 1) {
-			strncpy(cl.attr_msg.attr.tkt_id, booth_conf->ticket[0].name,
-				sizeof(cl.attr_msg.attr.tkt_id));
+		if ((*conf_pptr)->ticket_count == 1) {
+			strncpy(cl->attr_msg.attr.tkt_id,
+			        (*conf_pptr)->ticket[0].name,
+			        sizeof(cl->attr_msg.attr.tkt_id));
 		} else {
 			rv = 1;
 			log_error("No ticket given.");
@@ -1547,15 +1564,15 @@ static int do_attr(void)
 		}
 	}
 
-	switch (cl.op) {
+	switch (cl->op) {
 	case ATTR_LIST:
 	case ATTR_GET:
-		rv = query_get_string_answer(cl.op);
+		rv = query_get_string_answer(cl, *conf_pptr);
 		break;
 
 	case ATTR_SET:
 	case ATTR_DEL:
-		rv = do_attr_command(cl.op);
+		rv = do_attr_command(cl, *conf_pptr);
 		break;
 	}
 
@@ -1574,10 +1591,8 @@ int main(int argc, char *argv[], char *envp[])
 	init_set_proc_title(argc, argv, envp);
 	get_time(&start_time);
 
-	memset(&cl, 0, sizeof(cl));
-	strncpy(cl.configfile,
-			BOOTH_DEFAULT_CONF, BOOTH_PATH_LEN - 1);
-	cl.lockfile[0] = 0;
+	memset(&cmd_line, 0, sizeof(cmd_line));
+	strncpy(cmd_line.configfile, BOOTH_DEFAULT_CONF, BOOTH_PATH_LEN - 1);
 	debug_level = 0;
 
 
@@ -1599,32 +1614,34 @@ int main(int argc, char *argv[], char *envp[])
 	cl_log_enable_stderr(TRUE);
 	cl_log_set_facility(0);
 
-	rv = read_arguments(argc, argv);
+	rv = read_arguments(&cmd_line, argc, argv);
 	if (rv < 0)
 		goto out;
 
 
-	switch (cl.type) {
+	switch (cmd_line.type) {
 	case STATUS:
-		rv = do_status(cl.type);
+		rv = do_status(&cmd_line, &booth_conf);
 		break;
 
 	case ARBITRATOR:
 	case DAEMON:
 	case SITE:
-		rv = do_server(cl.type);
+		rv = do_server(&cmd_line, &booth_conf);
 		break;
 
 	case CLIENT:
-		rv = do_client();
+		rv = do_client(&cmd_line, &booth_conf);
 		break;
 
 	case GEOSTORE:
-		rv = do_attr();
+		rv = do_attr(&cmd_line, &booth_conf);
 		break;
 	}
 
 out:
+	config_free(booth_conf);
+
 #ifdef LOGGING_LIBQB
 	qb_log_fini();
 #endif

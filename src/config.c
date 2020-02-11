@@ -31,32 +31,42 @@
 #include "b_config.h"
 #include "booth.h"
 #include "config.h"
+#include "log.h"
 #include "raft.h"
 #include "ticket.h"
-#include "log.h"
+#include "utils.h"
 
 static int ticket_size = 0;
 
-static int ticket_realloc(void)
+static const struct booth_site _no_leader = {
+	.addr_string = "none",
+	.site_id = NO_ONE,
+	.index = -1,
+};
+struct booth_site *const no_leader = (struct booth_site*) &_no_leader;
+
+
+static int ticket_realloc(struct booth_config *conf_ptr)
 {
 	const int added = 5;
 	int had, want;
 	void *p;
 
-	had = booth_conf->ticket_allocated;
+	assert(conf_ptr != NULL);
+
+	had = conf_ptr->ticket_allocated;
 	want = had + added;
 
-	p = realloc(booth_conf->ticket,
-			sizeof(struct ticket_config) * want);
+	p = realloc(conf_ptr->ticket, sizeof(struct ticket_config) * want);
 	if (!p) {
 		log_error("can't alloc more tickets");
 		return -ENOMEM;
 	}
 
-	booth_conf->ticket = p;
-	memset(booth_conf->ticket + had, 0,
-			sizeof(struct ticket_config) * added);
-	booth_conf->ticket_allocated = want;
+	conf_ptr->ticket = p;
+	memset(conf_ptr->ticket + had, 0,
+	       sizeof(struct ticket_config) * added);
+	conf_ptr->ticket_allocated = want;
 
 	return 0;
 }
@@ -85,7 +95,7 @@ static void hostname_to_ip(char * hostname)
 	}
 }
 
-static int add_site(char *addr_string, int type)
+static int add_site(struct booth_config *conf_ptr, char *addr_string, int type)
 {
 	int rv;
 	struct booth_site *site;
@@ -93,18 +103,20 @@ static int add_site(char *addr_string, int type)
 	uint32_t mask;
 	int i;
 
+	assert(conf_ptr != NULL);
+
 	rv = 1;
-	if (booth_conf->site_count == MAX_NODES) {
+	if (conf_ptr->site_count == MAX_NODES) {
 		log_error("too many nodes");
 		goto out;
 	}
-	if (strnlen(addr_string, sizeof(booth_conf->site[0].addr_string))
-			>= sizeof(booth_conf->site[0].addr_string)) {
+	if (strnlen(addr_string, sizeof(conf_ptr->site[0].addr_string))
+			>= sizeof(conf_ptr->site[0].addr_string)) {
 		log_error("site address \"%s\" too long", addr_string);
 		goto out;
 	}
 
-	site = booth_conf->site + booth_conf->site_count;
+	site = conf_ptr->site + conf_ptr->site_count;
 
 	site->family = AF_INET;
 	site->type = type;
@@ -123,17 +135,17 @@ static int add_site(char *addr_string, int type)
 		hostname_to_ip(site->addr_string);
 	}
 
-	site->index = booth_conf->site_count;
-	site->bitmask = 1 << booth_conf->site_count;
+	site->index = conf_ptr->site_count;
+	site->bitmask = 1 << conf_ptr->site_count;
 	/* Catch site overflow */
 	assert(site->bitmask);
-	booth_conf->all_bits |= site->bitmask;
+	conf_ptr->all_bits |= site->bitmask;
 	if (type == SITE)
-		booth_conf->sites_bits |= site->bitmask;
+		conf_ptr->sites_bits |= site->bitmask;
 
 	site->tcp_fd = -1;
 
-	booth_conf->site_count++;
+	conf_ptr->site_count++;
 
 	rv = 0;
 	memset(&site->sa6, 0, sizeof(site->sa6));
@@ -155,7 +167,7 @@ static int add_site(char *addr_string, int type)
 
 		site->family = AF_INET;
 		site->sa4.sin_family = site->family;
-		site->sa4.sin_port = htons(booth_conf->port);
+		site->sa4.sin_port = htons(conf_ptr->port);
 		site->saddrlen = sizeof(site->sa4);
 		site->addrlen = sizeof(site->sa4.sin_addr);
 		site->site_id = crc32(nid, (void*)&site->sa4.sin_addr, site->addrlen);
@@ -167,7 +179,7 @@ static int add_site(char *addr_string, int type)
 		site->family = AF_INET6;
 		site->sa6.sin6_family = site->family;
 		site->sa6.sin6_flowinfo = 0;
-		site->sa6.sin6_port = htons(booth_conf->port);
+		site->sa6.sin6_port = htons(conf_ptr->port);
 		site->saddrlen = sizeof(site->sa6);
 		site->addrlen = sizeof(site->sa6.sin6_addr);
 		site->site_id = crc32(nid, (void*)&site->sa6.sin6_addr, site->addrlen);
@@ -186,7 +198,7 @@ static int add_site(char *addr_string, int type)
 
 	/* Test for collisions with other sites */
 	for(i=0; i<site->index; i++)
-		if (booth_conf->site[i].site_id == site->site_id) {
+		if (conf_ptr->site[i].site_id == site->site_id) {
 			log_error("Got a site-ID collision. Please file a bug on https://github.com/ClusterLabs/booth/issues/new, attaching the configuration file.");
 			exit(1);
 		}
@@ -230,29 +242,30 @@ static inline int is_end_of_line(char *cp)
 }
 
 
-static int add_ticket(const char *name, struct ticket_config **tkp,
-		const struct ticket_config *def)
+static int add_ticket(struct booth_config *conf_ptr, const char *name,
+                      struct ticket_config **tkp, const struct ticket_config *def)
 {
 	int rv;
 	struct ticket_config *tk;
 
+	assert(conf_ptr != NULL);
 
-	if (booth_conf->ticket_count == booth_conf->ticket_allocated) {
-		rv = ticket_realloc();
+	if (conf_ptr->ticket_count == conf_ptr->ticket_allocated) {
+		rv = ticket_realloc(conf_ptr);
 		if (rv < 0)
 			return rv;
 	}
 
 
-	tk = booth_conf->ticket + booth_conf->ticket_count;
-	booth_conf->ticket_count++;
+	tk = conf_ptr->ticket + conf_ptr->ticket_count;
+	conf_ptr->ticket_count++;
 
 	if (!check_max_len_valid(name, sizeof(tk->name))) {
 		log_error("ticket name \"%s\" too long.", name);
 		return -EINVAL;
 	}
 
-	if (find_ticket_by_name(name, NULL)) {
+	if (find_ticket_by_name(conf_ptr, name, NULL)) {
 		log_error("ticket name \"%s\" used again.", name);
 		return -EINVAL;
 	}
@@ -506,9 +519,10 @@ err_out:
 	return -1;
 }
 
-extern int poll_timeout;
-
-int read_config(const char *path, int type)
+int read_config(struct booth_config **conf_pptr,
+                const booth_transport_table_t *transport,
+                const struct ticket_handler *ticket_handler,
+                const char *path, int type)
 {
 	char line[1024];
 	FILE *fp;
@@ -522,38 +536,41 @@ int read_config(const char *path, int type)
 	struct ticket_config defaults = { { 0 } };
 	struct ticket_config *current_tk = NULL;
 
+	assert(conf_pptr != NULL);
+	config_free(*conf_pptr);
 
 	fp = fopen(path, "r");
 	if (!fp) {
 		log_error("failed to open %s: %s", path, strerror(errno));
+		*conf_pptr = NULL;
 		return -1;
 	}
 
-	booth_conf = malloc(sizeof(struct booth_config)
+	*conf_pptr = malloc(sizeof(struct booth_config)
 			+ TICKET_ALLOC * sizeof(struct ticket_config));
-	if (!booth_conf) {
+	if (*conf_pptr == NULL) {
 		fclose(fp);
 		log_error("failed to alloc memory for booth config");
 		return -ENOMEM;
 	}
-	memset(booth_conf, 0, sizeof(struct booth_config)
+	memset(*conf_pptr, 0, sizeof(struct booth_config)
 			+ TICKET_ALLOC * sizeof(struct ticket_config));
 	ticket_size = TICKET_ALLOC;
+	(*conf_pptr)->transport = transport;
+	(*conf_pptr)->ticket_handler = ticket_handler;
 
-
-	booth_conf->proto = UDP;
-	booth_conf->port = BOOTH_DEFAULT_PORT;
-	booth_conf->maxtimeskew = BOOTH_DEFAULT_MAX_TIME_SKEW;
-	booth_conf->authkey[0] = '\0';
-
+	(*conf_pptr)->proto = UDP;
+	(*conf_pptr)->port = BOOTH_DEFAULT_PORT;
+	(*conf_pptr)->maxtimeskew = BOOTH_DEFAULT_MAX_TIME_SKEW;
+	(*conf_pptr)->authkey[0] = '\0';
 
 	/* Provide safe defaults. -1 is reserved, though. */
-	booth_conf->uid = -2;
-	booth_conf->gid = -2;
-	strcpy(booth_conf->site_user,  "hacluster");
-	strcpy(booth_conf->site_group, "haclient");
-	strcpy(booth_conf->arb_user,   "nobody");
-	strcpy(booth_conf->arb_group,  "nobody");
+	(*conf_pptr)->uid = -2;
+	(*conf_pptr)->gid = -2;
+	strcpy((*conf_pptr)->site_user,  "hacluster");
+	strcpy((*conf_pptr)->site_group, "haclient");
+	strcpy((*conf_pptr)->arb_user,   "nobody");
+	strcpy((*conf_pptr)->arb_group,  "nobody");
 
 	parse_weights("", defaults.weight);
 	defaults.clu_test.path  = NULL;
@@ -664,9 +681,9 @@ no_value:
 			}
 
 			if (strcasecmp(val, "UDP") == 0)
-				booth_conf->proto = UDP;
+				(*conf_pptr)->proto = UDP;
 			else if (strcasecmp(val, "SCTP") == 0)
-				booth_conf->proto = SCTP;
+				(*conf_pptr)->proto = SCTP;
 			else {
 				error = "invalid transport protocol";
 				goto err;
@@ -676,12 +693,12 @@ no_value:
 		}
 
 		if (strcmp(key, "port") == 0) {
-			booth_conf->port = atoi(val);
+			(*conf_pptr)->port = atoi(val);
 			continue;
 		}
 
 		if (strcmp(key, "name") == 0) {
-			safe_copy(booth_conf->name, 
+			safe_copy((*conf_pptr)->name,
 					val, BOOTH_NAME_LEN,
 					"name");
 			continue;
@@ -689,48 +706,48 @@ no_value:
 
 #if HAVE_LIBGCRYPT || HAVE_LIBMHASH
 		if (strcmp(key, "authfile") == 0) {
-			safe_copy(booth_conf->authfile,
+			safe_copy((*conf_pptr)->authfile,
 					val, BOOTH_PATH_LEN,
 					"authfile");
 			continue;
 		}
 
 		if (strcmp(key, "maxtimeskew") == 0) {
-			booth_conf->maxtimeskew = atoi(val);
+			(*conf_pptr)->maxtimeskew = atoi(val);
 			continue;
 		}
 #endif
 
 		if (strcmp(key, "site") == 0) {
-			if (add_site(val, SITE))
+			if (add_site(*conf_pptr, val, SITE))
 				goto err;
 			continue;
 		}
 
 		if (strcmp(key, "arbitrator") == 0) {
-			if (add_site(val, ARBITRATOR))
+			if (add_site(*conf_pptr, val, ARBITRATOR))
 				goto err;
 			continue;
 		}
 
 		if (strcmp(key, "site-user") == 0) {
-			safe_copy(booth_conf->site_user, optarg, BOOTH_NAME_LEN,
-					"site-user");
+			safe_copy((*conf_pptr)->site_user, optarg, BOOTH_NAME_LEN,
+			          "site-user");
 			continue;
 		}
 		if (strcmp(key, "site-group") == 0) {
-			safe_copy(booth_conf->site_group, optarg, BOOTH_NAME_LEN,
-					"site-group");
+			safe_copy((*conf_pptr)->site_group, optarg, BOOTH_NAME_LEN,
+			          "site-group");
 			continue;
 		}
 		if (strcmp(key, "arbitrator-user") == 0) {
-			safe_copy(booth_conf->arb_user, optarg, BOOTH_NAME_LEN,
-					"arbitrator-user");
+			safe_copy((*conf_pptr)->arb_user, optarg, BOOTH_NAME_LEN,
+			          "arbitrator-user");
 			continue;
 		}
 		if (strcmp(key, "arbitrator-group") == 0) {
-			safe_copy(booth_conf->arb_group, optarg, BOOTH_NAME_LEN,
-					"arbitrator-group");
+			safe_copy((*conf_pptr)->arb_group, optarg, BOOTH_NAME_LEN,
+			          "arbitrator-group");
 			continue;
 		}
 
@@ -748,7 +765,8 @@ no_value:
 			}
 			if (!strcmp(val, "__defaults__")) {
 				current_tk = &defaults;
-			} else if (add_ticket(val, &current_tk, &defaults)) {
+			} else if (add_ticket(*conf_pptr, val, &current_tk,
+			                      &defaults)) {
 				goto err;
 			}
 			continue;
@@ -843,12 +861,12 @@ no_value:
 	}
 	fclose(fp);
 
-	if ((booth_conf->site_count % 2) == 0) {
+	if (((*conf_pptr)->site_count % 2) == 0) {
 		log_warn("Odd number of nodes is strongly recommended!");
 	}
 
 	/* Default: make config name match config filename. */
-	if (!booth_conf->name[0]) {
+	if (!(*conf_pptr)->name[0]) {
 		cp = strrchr(path, '/');
 		cp = cp ? cp+1 : (char *)path;
 		cp2 = strrchr(cp, '.');
@@ -858,17 +876,21 @@ no_value:
 			log_error("booth config file name too long");
 			goto out;
 		}
-		strncpy(booth_conf->name, cp, cp2-cp);
-		*(booth_conf->name+(cp2-cp)) = '\0';
+		strncpy((*conf_pptr)->name, cp, cp2-cp);
+		*((*conf_pptr)->name+(cp2-cp)) = '\0';
 	}
 
 	if (!postproc_ticket(current_tk)) {
 		goto out;
 	}
 
-	poll_timeout = min(POLL_TIMEOUT, min_timeout/10);
-	if (!poll_timeout)
-		poll_timeout = POLL_TIMEOUT;
+	safe_copy((*conf_pptr)->path_to_self, path,
+	          sizeof((*conf_pptr)->path_to_self),
+	          "path to config file itself");
+
+	(*conf_pptr)->poll_timeout = min(POLL_TIMEOUT, min_timeout/10);
+	if ((*conf_pptr)->poll_timeout == 0)
+		(*conf_pptr)->poll_timeout = POLL_TIMEOUT;
 
 	return 0;
 
@@ -879,79 +901,84 @@ out:
 	log_error("%s in config file line %d",
 			error, lineno);
 
-	free(booth_conf);
-	booth_conf = NULL;
+	config_free(*conf_pptr);
+	*conf_pptr = NULL;
 	return -1;
 }
 
+void config_free(struct booth_config *conf_ptr)
+{
+	if (conf_ptr != NULL) {
+		free(conf_ptr->ticket);
+	}
+	free(conf_ptr);
+}
 
-int check_config(int type)
+int check_config(struct booth_config *conf_ptr, int type)
 {
 	struct passwd *pw;
 	struct group *gr;
 	char *cp, *input;
 
-	if (!booth_conf)
+	if (conf_ptr == NULL)
 		return -1;
 
-
 	input = (type == ARBITRATOR)
-		? booth_conf->arb_user
-		: booth_conf->site_user;
+		? conf_ptr->arb_user
+		: conf_ptr->site_user;
 	if (!*input)
 		goto u_inval;
 	if (isdigit(input[0])) {
-		booth_conf->uid = strtol(input, &cp, 0);
+		conf_ptr->uid = strtol(input, &cp, 0);
 		if (*cp != 0) {
 u_inval:
 			log_error("User \"%s\" cannot be resolved into a UID.", input);
 			return ENOENT;
 		}
-	}
-	else {
+	} else {
 		pw = getpwnam(input);
 		if (!pw)
 			goto u_inval;
-		booth_conf->uid = pw->pw_uid;
+		conf_ptr->uid = pw->pw_uid;
 	}
 
 
 	input = (type == ARBITRATOR)
-		? booth_conf->arb_group
-		: booth_conf->site_group;
+		? conf_ptr->arb_group
+		: conf_ptr->site_group;
 	if (!*input)
 		goto g_inval;
 	if (isdigit(input[0])) {
-		booth_conf->gid = strtol(input, &cp, 0);
+		conf_ptr->gid = strtol(input, &cp, 0);
 		if (*cp != 0) {
 g_inval:
 			log_error("Group \"%s\" cannot be resolved into a UID.", input);
 			return ENOENT;
 		}
-	}
-	else {
+	} else {
 		gr = getgrnam(input);
 		if (!gr)
 			goto g_inval;
-		booth_conf->gid = gr->gr_gid;
+		conf_ptr->gid = gr->gr_gid;
 	}
 
 	return 0;
 }
 
-
-static int get_other_site(struct booth_site **node)
+static int get_other_site(struct booth_config *conf_ptr,
+                          struct booth_site **node)
 {
 	struct booth_site *n;
 	int i;
 
 	*node = NULL;
-	if (!booth_conf)
+	if (conf_ptr == NULL)
 		return 0;
 
-	for (i = 0; i < booth_conf->site_count; i++) {
-		n = booth_conf->site + i;
-		if (n != local && n->type == SITE) {
+	assert(conf_ptr->local != NULL);
+
+	FOREACH_NODE(conf_ptr, i, n) {
+		if (n != conf_ptr->local && n->type == SITE) {
 			if (!*node) {
 				*node = n;
 			} else {
@@ -963,20 +990,19 @@ static int get_other_site(struct booth_site **node)
 	return !*node ? 0 : 1;
 }
 
-
-int find_site_by_name(char *site, struct booth_site **node, int any_type)
+int find_site_by_name(struct booth_config *conf_ptr, const char *site,
+                      struct booth_site **node, int any_type)
 {
 	struct booth_site *n;
 	int i;
 
-	if (!booth_conf)
+	if (conf_ptr == NULL)
 		return 0;
 
 	if (!strcmp(site, OTHER_SITE))
-		return get_other_site(node);
+		return get_other_site(conf_ptr, node);
 
-	for (i = 0; i < booth_conf->site_count; i++) {
-		n = booth_conf->site + i;
+	FOREACH_NODE(conf_ptr, i, n) {
 		if ((n->type == SITE || any_type) &&
 		    strncmp(n->addr_string, site, sizeof(n->addr_string)) == 0) {
 			*node = n;
@@ -987,7 +1013,8 @@ int find_site_by_name(char *site, struct booth_site **node, int any_type)
 	return 0;
 }
 
-int find_site_by_id(uint32_t site_id, struct booth_site **node)
+int find_site_by_id(struct booth_config *conf_ptr, uint32_t site_id,
+                    struct booth_site **node)
 {
 	struct booth_site *n;
 	int i;
@@ -997,11 +1024,10 @@ int find_site_by_id(uint32_t site_id, struct booth_site **node)
 		return 1;
 	}
 
-	if (!booth_conf)
+	if (conf_ptr == NULL)
 		return 0;
 
-	for (i = 0; i < booth_conf->site_count; i++) {
-		n = booth_conf->site + i;
+	FOREACH_NODE(conf_ptr, i, n) {
 		if (n->site_id == site_id) {
 			*node = n;
 			return 1;
@@ -1010,7 +1036,6 @@ int find_site_by_id(uint32_t site_id, struct booth_site **node)
 
 	return 0;
 }
-
 
 const char *type_to_string(int type)
 {
@@ -1022,4 +1047,26 @@ const char *type_to_string(int type)
 		case GEOSTORE:   return "attr";
 	}
 	return "??invalid-type??";
+}
+
+int find_ticket_by_name(struct booth_config *conf_ptr,
+                        const char *ticket, struct ticket_config **found)
+{
+	struct ticket_config *tk;
+	int i;
+
+	assert(conf_ptr != NULL);
+
+	if (found)
+		*found = NULL;
+
+	FOREACH_TICKET(conf_ptr, i, tk) {
+		if (!strncmp(tk->name, ticket, sizeof(tk->name))) {
+			if (found)
+				*found = tk;
+			return 1;
+		}
+	}
+
+	return 0;
 }

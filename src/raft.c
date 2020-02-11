@@ -23,9 +23,9 @@
 #include <arpa/inet.h>
 #include "booth.h"
 #include "timer.h"
+#include "config.h"
 #include "transport.h"
 #include "inline-fn.h"
-#include "config.h"
 #include "raft.h"
 #include "ticket.h"
 #include "request.h"
@@ -33,14 +33,17 @@
 #include "manual.h"
 
 
-inline static void clear_election(struct ticket_config *tk)
+inline static void clear_election(struct booth_config *conf_ptr,
+                                  struct ticket_config *tk)
 {
 	int i;
 	struct booth_site *site;
 
+	assert(conf_ptr != NULL);
+
 	tk_log_debug("clear election");
 	tk->votes_received = 0;
-	foreach_node(i, site)
+	FOREACH_NODE(conf_ptr, i, site)
 		tk->votes_for[site->index] = NULL;
 }
 
@@ -113,8 +116,9 @@ static void copy_ticket_from_msg(struct ticket_config *tk,
 	tk->current_term = ntohl(msg->ticket.term);
 }
 
-static void become_follower(struct ticket_config *tk,
-		struct boothc_ticket_msg *msg)
+static void become_follower(struct booth_config *conf_ptr,
+                            struct ticket_config *tk,
+                            struct boothc_ticket_msg *msg)
 {
 	copy_ticket_from_msg(tk, msg);
 	set_state(tk, ST_FOLLOWER);
@@ -125,28 +129,32 @@ static void become_follower(struct ticket_config *tk,
 	 */
 	if (tk->is_granted) {
 		disown_ticket(tk);
-		ticket_write(tk);
+		ticket_write(conf_ptr, tk);
 	}
 }
 
 
-static void won_elections(struct ticket_config *tk)
+static void won_elections(struct booth_config *conf_ptr,
+                          struct ticket_config *tk)
 {
-	set_leader(tk, local);
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
+
+	set_leader(tk, conf_ptr->local);
 	set_state(tk, ST_LEADER);
 
 	set_ticket_expiry(tk, tk->term_duration);
 	time_reset(&tk->election_end);
 	tk->voted_for = NULL;
 
-	if (is_time_set(&tk->delay_commit) && all_sites_replied(tk)) {
+	if (is_time_set(&tk->delay_commit) && all_sites_replied(conf_ptr, tk)) {
 		time_reset(&tk->delay_commit);
 		tk_log_debug("reset delay commit as all sites replied");
 	}
 
 	save_committed_tkt(tk);
 
-	ticket_broadcast(tk, OP_HEARTBEAT, OP_ACK, RLT_SUCCESS, 0);
+	ticket_broadcast(conf_ptr, tk, OP_HEARTBEAT, OP_ACK, RLT_SUCCESS, 0);
 	tk->ticket_updated = 0;
 }
 
@@ -154,14 +162,16 @@ static void won_elections(struct ticket_config *tk)
 /* if more than one member got the same (and maximum within that
  * election) number of votes, then that is a tie
  */
-static int is_tie(struct ticket_config *tk)
+static int is_tie(struct booth_config *conf_ptr, struct ticket_config *tk)
 {
+	struct booth_site *v, *ignored __attribute__((unused));
 	int i;
-	struct booth_site *v;
 	int count[MAX_NODES] = { 0, };
 	int max_votes = 0, max_cnt = 0;
 
-	for(i=0; i<booth_conf->site_count; i++) {
+	assert(conf_ptr != NULL);
+
+	FOREACH_NODE(conf_ptr, i, ignored) {
 		v = tk->votes_for[i];
 		if (!v)
 			continue;
@@ -169,7 +179,7 @@ static int is_tie(struct ticket_config *tk)
 		max_votes = max(max_votes, count[v->index]);
 	}
 
-	for(i=0; i<booth_conf->site_count; i++) {
+	FOREACH_NODE(conf_ptr, i, ignored) {
 		if (count[i] == max_votes)
 			max_cnt++;
 	}
@@ -177,14 +187,16 @@ static int is_tie(struct ticket_config *tk)
 	return max_cnt > 1;
 }
 
-static struct booth_site *majority_votes(struct ticket_config *tk)
+static struct booth_site *majority_votes(struct booth_config *conf_ptr,
+                                         struct ticket_config *tk)
 {
+	struct booth_site *v, *node;
 	int i, n;
-	struct booth_site *v;
 	int count[MAX_NODES] = { 0, };
 
+	assert(conf_ptr != NULL);
 
-	for(i=0; i<booth_conf->site_count; i++) {
+	FOREACH_NODE(conf_ptr, i, node) {
 		v = tk->votes_for[i];
 		if (!v || v == no_leader)
 			continue;
@@ -192,17 +204,14 @@ static struct booth_site *majority_votes(struct ticket_config *tk)
 		n = v->index;
 		count[n]++;
 		tk_log_debug("Majority: %d %s wants %d %s => %d",
-				i, site_string(&booth_conf->site[i]),
-				n, site_string(v),
-				count[n]);
+		             i, site_string(node), n, site_string(v), count[n]);
 
-		if (count[n]*2 <= booth_conf->site_count)
+		if (count[n]*2 <= conf_ptr->site_count)
 			continue;
 
 
 		tk_log_debug("Majority reached: %d of %d for %s",
-				count[n], booth_conf->site_count,
-				site_string(v));
+		              count[n], conf_ptr->site_count, site_string(v));
 		return v;
 	}
 
@@ -210,9 +219,13 @@ static struct booth_site *majority_votes(struct ticket_config *tk)
 }
 
 
-void elections_end(struct ticket_config *tk)
+void elections_end(struct booth_config *conf_ptr,
+                   struct ticket_config *tk)
 {
 	struct booth_site *new_leader;
+
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
 
 	if (is_past(&tk->election_end)) {
 		/* This is previous election timed out */
@@ -220,9 +233,9 @@ void elections_end(struct ticket_config *tk)
 	}
 
 	tk->in_election = 0;
-	new_leader = majority_votes(tk);
-	if (new_leader == local) {
-		won_elections(tk);
+	new_leader = majority_votes(conf_ptr, tk);
+	if (new_leader == conf_ptr->local) {
+		won_elections(conf_ptr, tk);
 		tk_log_info("granted successfully here");
 	} else if (new_leader) {
 		tk_log_info("ticket granted at %s",
@@ -230,24 +243,26 @@ void elections_end(struct ticket_config *tk)
 	} else {
 		tk_log_info("nobody won elections, new elections");
 		tk->outcome = RLT_MORE;
-		foreach_tkt_req(tk, notify_client);
-		if (!new_election(tk, NULL, is_tie(tk) ? 2 : 0, OR_AGAIN)) {
+		foreach_tkt_req(conf_ptr, tk, notify_client);
+		if (!new_election(conf_ptr, tk, NULL,
+		                  is_tie(conf_ptr, tk) ? 2 : 0, OR_AGAIN)) {
 			ticket_activate_timeout(tk);
 		}
 	}
 }
 
 
-static int newer_term(struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg,
-		int in_election)
+static int newer_term(struct booth_config *conf_ptr, struct ticket_config *tk,
+                      struct booth_site *sender, struct booth_site *leader,
+                      struct boothc_ticket_msg *msg, int in_election)
 {
 	uint32_t term;
 
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
+
 	/* it may happen that we hear about our newer term */
-	if (leader == local)
+	if (leader == conf_ptr->local)
 		return 0;
 
 	term = ntohl(msg->ticket.term);
@@ -291,10 +306,10 @@ static int msg_term_invalid(struct ticket_config *tk,
 	return 0;
 }
 
-static int term_too_low(struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg)
+static int term_too_low(struct booth_config *conf_ptr,
+                        struct ticket_config *tk, struct booth_site *sender,
+                        struct booth_site *leader,
+                        struct boothc_ticket_msg *msg)
 {
 	uint32_t term;
 
@@ -305,7 +320,7 @@ static int term_too_low(struct ticket_config *tk,
 			"(%d vs. %d)", site_string(sender),
 			term, tk->current_term
 			);
-		send_reject(sender, tk, RLT_TERM_OUTDATED, msg);
+		send_reject(conf_ptr, sender, tk, RLT_TERM_OUTDATED, msg);
 		return 1;
 	}
 
@@ -316,12 +331,11 @@ static int term_too_low(struct ticket_config *tk,
 
 
 /* For follower. */
-static int answer_HEARTBEAT (
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-	       )
+static int answer_HEARTBEAT(struct booth_config *conf_ptr,
+                            struct ticket_config *tk,
+                            struct booth_site *sender,
+                            struct booth_site *leader,
+                            struct boothc_ticket_msg *msg)
 {
 	uint32_t term;
 
@@ -338,7 +352,8 @@ static int answer_HEARTBEAT (
 			tk_log_warn("different leader %s with a lower term "
 					"(%d vs %d), sending reject",
 				site_string(leader), term, tk->current_term);
-			return send_reject(sender, tk, RLT_TERM_OUTDATED, msg);
+			return send_reject(conf_ptr, sender, tk,
+			                   RLT_TERM_OUTDATED, msg);
 		}
 	}
 
@@ -346,25 +361,23 @@ static int answer_HEARTBEAT (
 	tk->expect_more_rejects = 0;
 
 	/* Needed? */
-	newer_term(tk, sender, leader, msg, 0);
+	newer_term(conf_ptr, tk, sender, leader, msg, 0);
 
-	become_follower(tk, msg);
+	become_follower(conf_ptr, tk, msg);
 	/* Racy??? */
 	assert(sender == leader || !leader);
 
 	set_leader(tk, leader);
 
 	/* Ack the heartbeat (we comply). */
-	return send_msg(OP_ACK, tk, sender, msg);
+	return send_msg(conf_ptr, OP_ACK, tk, sender, msg);
 }
 
 
-static int process_UPDATE (
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-	       )
+static int process_UPDATE(struct booth_config *conf_ptr,
+                          struct ticket_config *tk, struct booth_site *sender,
+                          struct booth_site *leader,
+                          struct boothc_ticket_msg *msg)
 {
 	if (is_owned(tk) && sender != tk->leader) {
 		tk_log_warn("different leader %s wants to update "
@@ -372,34 +385,33 @@ static int process_UPDATE (
 			site_string(leader));
 
 		mark_ticket_as_granted(tk, sender);
-		return send_reject(sender, tk, RLT_TERM_OUTDATED, msg);
+		return send_reject(conf_ptr, sender, tk, RLT_TERM_OUTDATED,
+		                   msg);
 	}
 
 	tk_log_debug("leader %s wants to update our ticket",
 			site_string(leader));
 
-	become_follower(tk, msg);
+	become_follower(conf_ptr, tk, msg);
 	set_leader(tk, leader);
-	ticket_write(tk);
+	ticket_write(conf_ptr, tk);
 
 	/* run ticket_cron if the ticket expires */
-	set_ticket_wakeup(tk);
+	set_ticket_wakeup(conf_ptr, tk);
 
-	return send_msg(OP_ACK, tk, sender, msg);
+	return send_msg(conf_ptr, OP_ACK, tk, sender, msg);
 }
 
-static int process_REVOKE (
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-	       )
+static int process_REVOKE(struct booth_config *conf_ptr,
+                          struct ticket_config *tk, struct booth_site *sender,
+                          struct booth_site *leader,
+                          struct boothc_ticket_msg *msg)
 {
 	int rv;
 
 	if (tk->state == ST_INIT && tk->leader == no_leader) {
 		/* assume that our ack got lost */
-		rv = send_msg(OP_ACK, tk, sender, msg);
+		rv = send_msg(conf_ptr, OP_ACK, tk, sender, msg);
 	} else if (tk->leader != sender) {
 		if (!is_manual(tk)) {
 			tk_log_error("%s wants to revoke ticket, "
@@ -407,7 +419,8 @@ static int process_REVOKE (
 					site_string(sender));
 			return -1;
 		} else {
-			rv = process_REVOKE_for_manual_ticket(tk, sender, msg);
+			rv = process_REVOKE_for_manual_ticket(conf_ptr, tk,
+			                                      sender, msg);
 	
 			// Ticket data stored in this site is not modified. This means
 			// that this site will still follow another leader (the one which
@@ -424,8 +437,8 @@ static int process_REVOKE (
 				site_string(tk->leader));
 		save_committed_tkt(tk);
 		reset_ticket_and_set_no_leader(tk);
-		ticket_write(tk);
-		rv = send_msg(OP_ACK, tk, sender, msg);
+		ticket_write(conf_ptr, tk);
+		rv = send_msg(conf_ptr, OP_ACK, tk, sender, msg);
 	}
 
 	return rv;
@@ -433,19 +446,16 @@ static int process_REVOKE (
 
 
 /* For leader. */
-static int process_ACK(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-	       )
+static int process_ACK(struct booth_config *conf_ptr,
+                       struct ticket_config *tk, struct booth_site *sender,
+                       struct booth_site *leader, struct boothc_ticket_msg *msg)
 {
 	uint32_t term;
 	int req;
 
 	term = ntohl(msg->ticket.term);
 
-	if (newer_term(tk, sender, leader, msg, 0)) {
+	if (newer_term(conf_ptr, tk, sender, leader, msg, 0)) {
 		/* unexpected higher term */
 		tk_log_warn("got higher term from %s (%d vs. %d)",
 				site_string(sender),
@@ -474,11 +484,11 @@ static int process_ACK(
 			term == tk->current_term &&
 			leader == tk->leader) {
 
-		if (majority_of_bits(tk, tk->acks_received)) {
+		if (majority_of_bits(conf_ptr, tk, tk->acks_received)) {
 			/* OK, at least half of the nodes are reachable;
 			 * Update the ticket and send update messages out
 			 */
-			return leader_update_ticket(tk);
+			return leader_update_ticket(conf_ptr, tk);
 		}
 	}
 
@@ -486,13 +496,14 @@ static int process_ACK(
 }
 
 
-static int process_VOTE_FOR(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-		)
+static int process_VOTE_FOR(struct booth_config *conf_ptr,
+                            struct ticket_config *tk, struct booth_site *sender,
+                            struct booth_site *leader,
+                            struct boothc_ticket_msg *msg)
 {
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
+
 	if (leader == no_leader) {
 		/* leader wants to step down? */
 		if (sender == tk->leader &&
@@ -502,9 +513,9 @@ static int process_VOTE_FOR(
 			save_committed_tkt(tk);
 			reset_ticket(tk);
 			set_state(tk, ST_FOLLOWER);
-			if (local->type == SITE) {
-				ticket_write(tk);
-				schedule_election(tk, OR_STEPDOWN);
+			if (conf_ptr->local->type == SITE) {
+				ticket_write(conf_ptr, tk);
+				schedule_election(conf_ptr, tk, OR_STEPDOWN);
 			}
 		} else {
 			tk_log_info("%s votes for none, ignoring (duplicate ticket release?)",
@@ -520,11 +531,11 @@ static int process_VOTE_FOR(
 		return 0;
 	}
 
-	if (term_too_low(tk, sender, leader, msg))
+	if (term_too_low(conf_ptr, tk, sender, leader, msg))
 		return 0;
 
-	if (newer_term(tk, sender, leader, msg, 0)) {
-		clear_election(tk);
+	if (newer_term(conf_ptr, tk, sender, leader, msg, 0)) {
+		clear_election(conf_ptr, tk);
 	}
 
 	record_vote(tk, sender, leader);
@@ -533,26 +544,26 @@ static int process_VOTE_FOR(
 	 * wait for timeout in ticket_cron */
 	if (!tk->acks_expected) {
 		/* §5.2 */
-		elections_end(tk);
+		elections_end(conf_ptr, tk);
 	}
 
 	return 0;
 }
 
 
-static int process_REJECTED(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-		)
+static int process_REJECTED(struct booth_config *conf_ptr,
+                            struct ticket_config *tk, struct booth_site *sender,
+                            struct booth_site *leader,
+                            struct boothc_ticket_msg *msg)
 {
 	uint32_t rv;
 
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
+
 	rv   = ntohl(msg->header.result);
 
-	if (tk->state == ST_CANDIDATE &&
-			leader == local) {
+	if (tk->state == ST_CANDIDATE && leader == conf_ptr->local) {
 		/* the sender has us as the leader (!)
 		 * the elections will time out, then we can try again
 		 */
@@ -570,7 +581,7 @@ static int process_REJECTED(
 				);
 		set_leader(tk, leader);
 		tk->expect_more_rejects = 1;
-		become_follower(tk, msg);
+		become_follower(conf_ptr, tk, msg);
 		return 0;
 	}
 
@@ -591,7 +602,7 @@ static int process_REJECTED(
 					site_string(leader));
 		}
 		set_leader(tk, leader);
-		become_follower(tk, msg);
+		become_follower(conf_ptr, tk, msg);
 		tk->expect_more_rejects = 1;
 		return 0;
 	}
@@ -603,7 +614,7 @@ static int process_REJECTED(
 		if (leader && leader != no_leader) {
 			tk_log_warn("our ticket is outdated, granted to %s",
 				site_string(leader));
-			become_follower(tk, msg);
+			become_follower(conf_ptr, tk, msg);
 		} else {
 			tk_log_warn("our ticket is outdated and revoked");
 			update_ticket_from_msg(tk, sender, msg);
@@ -673,12 +684,10 @@ static int test_reason(
 
 
 /* §5.2 */
-static int answer_REQ_VOTE(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-		)
+static int answer_REQ_VOTE(struct booth_config *conf_ptr,
+                           struct ticket_config *tk, struct booth_site *sender,
+                           struct booth_site *leader,
+                           struct boothc_ticket_msg *msg)
 {
 	int valid;
 	struct boothc_ticket_msg omsg;
@@ -687,7 +696,7 @@ static int answer_REQ_VOTE(
 
 	inappr_reason = test_reason(tk, sender, leader, msg);
 	if (inappr_reason)
-		return send_reject(sender, tk, inappr_reason, msg);
+		return send_reject(conf_ptr, sender, tk, inappr_reason, msg);
 
 	valid = term_time_left(tk);
 	reason = ntohl(msg->header.reason);
@@ -699,10 +708,11 @@ static int answer_REQ_VOTE(
 			"(we have %s as ticket owner), ticket still valid for %ds",
 			site_string(sender), state_to_string(reason),
 			site_string(tk->leader), valid);
-		return send_reject(sender, tk, RLT_TERM_STILL_VALID, msg);
+		return send_reject(conf_ptr, sender, tk, RLT_TERM_STILL_VALID,
+		                   msg);
 	}
 
-	if (term_too_low(tk, sender, leader, msg))
+	if (term_too_low(conf_ptr, tk, sender, leader, msg))
 		return 0;
 
 	/* set this, so that we know not to send status for the
@@ -714,8 +724,8 @@ static int answer_REQ_VOTE(
 		set_leader(tk, NULL);
 
 	/* if it's a newer term or ... */
-	if (newer_term(tk, sender, leader, msg, 1)) {
-		clear_election(tk);
+	if (newer_term(conf_ptr, tk, sender, leader, msg, 1)) {
+		clear_election(conf_ptr, tk);
 		goto vote_for_sender;
 	}
 
@@ -729,20 +739,25 @@ vote_for_sender:
 	}
 
 
-	init_ticket_msg(&omsg, OP_VOTE_FOR, OP_REQ_VOTE, RLT_SUCCESS, 0, tk);
+	init_ticket_msg(conf_ptr, &omsg, OP_VOTE_FOR, OP_REQ_VOTE,
+	                RLT_SUCCESS, 0, tk);
 	omsg.ticket.leader = htonl(get_node_id(tk->voted_for));
-	return booth_udp_send_auth(sender, &omsg, sendmsglen(&omsg));
+	return booth_udp_send_auth(conf_ptr, sender, &omsg, sendmsglen(&omsg));
 }
 
 #define is_reason(r, tk) \
 	(reason == (r) || (reason == OR_AGAIN && (tk)->election_reason == (r)))
 
-int new_election(struct ticket_config *tk,
-	struct booth_site *preference, int update_term, cmd_reason_t reason)
+int new_election(struct booth_config *conf_ptr,
+                 struct ticket_config *tk, struct booth_site *preference,
+		 int update_term, cmd_reason_t reason)
 {
 	struct booth_site *new_leader;
 
-	if (local->type != SITE)
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
+
+	if (conf_ptr->local->type != SITE)
 		return 0;
 
 	if ((is_reason(OR_TKT_LOST, tk) || is_reason(OR_STEPDOWN, tk)) &&
@@ -794,10 +809,10 @@ int new_election(struct ticket_config *tk,
 
 	tk_log_info("starting new election (term=%d)",
 			tk->current_term);
-	clear_election(tk);
+	clear_election(conf_ptr,  tk);
 
-	new_leader = preference ? preference : local;
-	record_vote(tk, local, new_leader);
+	new_leader = preference ? preference : conf_ptr->local;
+	record_vote(tk, conf_ptr->local, new_leader);
 	tk->voted_for = new_leader;
 
 	set_state(tk, ST_CANDIDATE);
@@ -809,7 +824,8 @@ int new_election(struct ticket_config *tk,
 		tk->election_reason = reason;
 	}
 
-	ticket_broadcast(tk, OP_REQ_VOTE, OP_VOTE_FOR, RLT_SUCCESS, reason);
+	ticket_broadcast(conf_ptr, tk, OP_REQ_VOTE, OP_VOTE_FOR,
+                         RLT_SUCCESS, reason);
 	add_random_delay(tk);
 	return 0;
 }
@@ -820,15 +836,17 @@ int new_election(struct ticket_config *tk,
  * there was probably connectivity loss
  * tricky
  */
-static int leader_handle_newer_ticket(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-	       )
+static int leader_handle_newer_ticket(struct booth_config *conf_ptr,
+                                      struct ticket_config *tk,
+                                      struct booth_site *sender,
+                                      struct booth_site *leader,
+                                      struct boothc_ticket_msg *msg)
 {
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
+
 	update_term_from_msg(tk, msg);
-	if (leader != no_leader && leader && leader != local) {
+	if (leader != no_leader && leader && leader != conf_ptr->local) {
 		/* eek, two leaders, split brain */
 		/* normally shouldn't happen; run election */
 		tk_log_error("from %s: ticket granted to %s! (revoking locally)",
@@ -848,15 +866,17 @@ static int leader_handle_newer_ticket(
 }
 
 /* reply to STATUS */
-static int process_MY_INDEX (
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-	       )
+static int process_MY_INDEX(struct booth_config *conf_ptr,
+                            struct ticket_config *tk,
+                            struct booth_site *sender,
+                            struct booth_site *leader,
+                            struct boothc_ticket_msg *msg)
 {
 	int i;
 	int expired;
+
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
 
 	expired = !msg_term_time(msg);
 	/* test against the last valid(!) ticket we have */
@@ -864,11 +884,11 @@ static int process_MY_INDEX (
 
 	if (i > 0) {
 		/* let them know about our newer ticket */
-		send_msg(OP_MY_INDEX, tk, sender, msg);
+		send_msg(conf_ptr, OP_MY_INDEX, tk, sender, msg);
 		if (tk->state == ST_LEADER) {
 			tk_log_info("sending ticket update to %s",
 					site_string(sender));
-			return send_msg(OP_UPDATE, tk, sender, msg);
+			return send_msg(conf_ptr, OP_UPDATE, tk, sender, msg);
 		}
 	}
 
@@ -892,13 +912,14 @@ static int process_MY_INDEX (
 					site_string(sender),
 					site_string(leader)
 					);
-			return leader_handle_newer_ticket(tk, sender, leader, msg);
+			return leader_handle_newer_ticket(conf_ptr, tk, sender,
+			                                  leader, msg);
 		} else {
 			/* we have the ticket and we don't care */
 			return 0;
 		}
 	} else if (tk->state == ST_CANDIDATE) {
-		if (leader == local) {
+		if (leader == conf_ptr->local) {
 			/* a belated MY_INDEX, we're already trying to get the
 			 * ticket */
 			return 0;
@@ -909,22 +930,22 @@ static int process_MY_INDEX (
 	 * ignore it */
 	update_ticket_from_msg(tk, sender, msg);
 	set_leader(tk, leader);
-	update_ticket_state(tk, sender);
+	update_ticket_state(conf_ptr, tk, sender);
 	save_committed_tkt(tk);
-	set_ticket_wakeup(tk);
+	set_ticket_wakeup(conf_ptr, tk);
 	return 0;
 }
 
 
-int raft_answer(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-	       )
+int raft_answer(struct booth_config *conf_ptr, struct ticket_config *tk,
+                struct booth_site *sender, struct booth_site *leader,
+                struct boothc_ticket_msg *msg)
 {
 	int cmd, req;
 	int rv;
+
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
 
 	rv = 0;
 	cmd = ntohl(msg->header.cmd);
@@ -949,21 +970,22 @@ int raft_answer(
 
 	switch (cmd) {
 	case OP_REQ_VOTE:
-		rv = answer_REQ_VOTE(tk, sender, leader, msg);
+		rv = answer_REQ_VOTE(conf_ptr, tk, sender, leader, msg);
 		break;
 	case OP_VOTE_FOR:
-		rv = process_VOTE_FOR(tk, sender, leader, msg);
+		rv = process_VOTE_FOR(conf_ptr, tk, sender, leader, msg);
 		break;
 	case OP_ACK:
-		if (tk->leader == local &&
-				tk->state == ST_LEADER)
-			rv = process_ACK(tk, sender, leader, msg);
+		if (tk->leader == conf_ptr->local
+				&& tk->state == ST_LEADER)
+			rv = process_ACK(conf_ptr, tk, sender, leader, msg);
 		break;
 	case OP_HEARTBEAT:
-		if ((tk->leader != local || !term_time_left(tk)) &&
-				(tk->state == ST_INIT || tk->state == ST_FOLLOWER ||
-				tk->state == ST_CANDIDATE))
-			rv = answer_HEARTBEAT(tk, sender, leader, msg);
+		if ((tk->leader != conf_ptr->local || !term_time_left(tk))
+				&& (tk->state == ST_INIT
+					|| tk->state == ST_FOLLOWER
+					|| tk->state == ST_CANDIDATE))
+			rv = answer_HEARTBEAT(conf_ptr, tk, sender, leader, msg);
 		else {
 			tk_log_warn("unexpected message %s, from %s",
 				state_to_string(cmd),
@@ -971,36 +993,40 @@ int raft_answer(
 				mark_ticket_as_granted(tk, sender);
 
 			if (ticket_seems_ok(tk))
-				send_reject(sender, tk, RLT_TERM_STILL_VALID, msg);
+				send_reject(conf_ptr, sender, tk,
+				            RLT_TERM_STILL_VALID, msg);
 			rv = -EINVAL;
 		}
 		break;
 	case OP_UPDATE:
-		if (((tk->leader != local && tk->leader == leader) || !is_owned(tk)) &&
-				(tk->state == ST_INIT || tk->state == ST_FOLLOWER ||
-				tk->state == ST_CANDIDATE)) {
-			rv = process_UPDATE(tk, sender, leader, msg);
+		if (((tk->leader != conf_ptr->local && tk->leader == leader)
+				|| !is_owned(tk))
+				&& (tk->state == ST_INIT
+					|| tk->state == ST_FOLLOWER
+					|| tk->state == ST_CANDIDATE)) {
+			rv = process_UPDATE(conf_ptr, tk, sender, leader, msg);
 		} else {
 			tk_log_warn("unexpected message %s, from %s",
 				state_to_string(cmd),
 				site_string(sender));
 			if (ticket_seems_ok(tk))
-				send_reject(sender, tk, RLT_TERM_STILL_VALID, msg);
+				send_reject(conf_ptr, sender, tk,
+				            RLT_TERM_STILL_VALID, msg);
 			rv = -EINVAL;
 		}
 		break;
 	case OP_REJECTED:
-		rv = process_REJECTED(tk, sender, leader, msg);
+		rv = process_REJECTED(conf_ptr, tk, sender, leader, msg);
 		break;
 	case OP_REVOKE:
-		rv = process_REVOKE(tk, sender, leader, msg);
+		rv = process_REVOKE(conf_ptr, tk, sender, leader, msg);
 		break;
 	case OP_MY_INDEX:
-		rv = process_MY_INDEX(tk, sender, leader, msg);
+		rv = process_MY_INDEX(conf_ptr, tk, sender, leader, msg);
 		break;
 	case OP_STATUS:
 		if (!tk->in_election)
-			rv = send_msg(OP_MY_INDEX, tk, sender, msg);
+			rv = send_msg(conf_ptr, OP_MY_INDEX, tk, sender, msg);
 		break;
 	default:
 		tk_log_error("unknown message %s, from %s",

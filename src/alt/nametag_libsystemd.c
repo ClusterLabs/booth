@@ -43,14 +43,17 @@ void sd_notify_wrapper(const char *fmt, ...)
 	char buffer[255];
 	char *fmt_iter;
 	char *suffix = NULL;
-	va_list ap;
+	va_list ap, copy;
 
-	switch (local->type) {
-		case ARBITRATOR:
-		case GEOSTORE:
-			break;
-		default:
-			return;  /* not expected to be run as system service */
+	/* this code undoes the type_to_string mapping */
+	va_start(ap, fmt);
+	va_copy(copy, ap);
+	for (int i = 0; i < 3; i++) {
+		fmt_iter = va_arg(copy, char *);
+	}
+	/* see config.c:type_to_string */
+	if (strcmp(fmt_iter, "arbitrator") && strcmp(fmt_iter, "attr")) {
+		return;  /* not expected to be run as system service */
 	}
 
 	fmt_iter = strchr(fmt, '%');
@@ -67,7 +70,6 @@ void sd_notify_wrapper(const char *fmt, ...)
 	}
 	while (isspace(*++suffix)) /* noop */ ;
 
-	va_start(ap, fmt);
 	fmt_iter = va_arg(ap, char *);  /* just shift by one */
 	assert(!strcmp(fmt_iter, DAEMON_NAME));
 	rv = vsnprintf(buffer, sizeof(buffer), suffix, ap);

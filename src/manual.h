@@ -23,13 +23,36 @@
 
 struct ticket_config;
 
-int manual_selection(struct ticket_config *tk,
-		struct booth_site *new_leader, int update_term, cmd_reason_t reason);
+/**
+ * @internal
+ * Assign a local site as a leader for the ticket
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] tk ticket at hand
+ * @param[in] preference unused
+ * @param[in] update_term unused
+ * @param[in] reason explains why new "election" is conducted
+ *
+ * @return see #send_msg
+ */
+int manual_selection(struct booth_config *conf_ptr,
+                     struct ticket_config *tk, struct booth_site *preference,
+                     int update_term, cmd_reason_t reason);
 
-int process_REVOKE_for_manual_ticket (
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct boothc_ticket_msg *msg);
-
+/**
+ * @internal
+ * Handle REVOKE message
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] tk ticket at hand
+ * @param[in] sender site structure of the sender
+ * @param[in] msg message to deal with
+ *
+ * @return 0 on success (only possible outcome)
+ */
+int process_REVOKE_for_manual_ticket(struct booth_config *conf_ptr,
+                                     struct ticket_config *tk,
+                                     struct booth_site *sender,
+                                     struct boothc_ticket_msg *msg);
 
 #endif /* _MANUAL_H */

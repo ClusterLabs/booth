@@ -33,24 +33,20 @@
 #include <netinet/tcp.h>
 #include <sys/socket.h>  /* getnameinfo */
 #include "b_config.h"
+#include "config.h"
+#include "transport.h"
 #include "attr.h"
 #include "auth.h"
 #include "booth.h"
-#include "config.h"
 #include "inline-fn.h"
 #include "log.h"
 #include "ticket.h"
-#include "transport.h"
 
 #define BOOTH_IPADDR_LEN	(sizeof(struct in6_addr))
 
 #define NETLINK_BUFSIZE		16384
 #define SOCKET_BUFFER_SIZE	160000
 #define FRAME_SIZE_MAX		10000
-
-
-
-struct booth_site *local = NULL;
 
 /* function to be called when handling booth-group-internal messages;
  * it's expected to return 0 to indicate success, negative integer
@@ -77,11 +73,10 @@ enum match_type {
 	EXACT_MATCH,
 };
 
-static int find_address(unsigned char ipaddr[BOOTH_IPADDR_LEN],
-		int family, int prefixlen,
-		int fuzzy_allowed,
-		struct booth_site **me,
-		int *address_bits_matched)
+static int find_address(struct booth_config *conf_ptr,
+                        unsigned char ipaddr[BOOTH_IPADDR_LEN],
+                        int family, int prefixlen, int fuzzy_allowed,
+                        struct booth_site **me, int *address_bits_matched)
 {
 	int i;
 	struct booth_site *node;
@@ -91,14 +86,14 @@ static int find_address(unsigned char ipaddr[BOOTH_IPADDR_LEN],
 	int matched;
 	enum match_type did_match = NO_MATCH;
 
+	assert(conf_ptr != NULL);
 
 	bytes = prefixlen / 8;
 	bits_left = prefixlen % 8;
 	/* One bit left to check means ignore 7 lowest bits. */
 	mask = ~( (1 << (8 - bits_left)) -1);
 
-	for (i = 0; i < booth_conf->site_count; i++) {
-		node = booth_conf->site + i;
+	FOREACH_NODE(conf_ptr, i, node) {
 		if (family != node->family)
 			continue;
 		n_a = node_to_addr_pointer(node);
@@ -140,12 +135,12 @@ static int find_address(unsigned char ipaddr[BOOTH_IPADDR_LEN],
 }
 
 
-int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed);
-int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed)
+static int _find_myself(struct booth_config *conf_ptr, int family,
+                        int fuzzy_allowed)
 {
 	int fd;
 	struct sockaddr_nl nladdr;
-	struct booth_site *me;
+	struct booth_site *me = NULL;
 	unsigned char ipaddr[BOOTH_IPADDR_LEN];
 	static char rcvbuf[NETLINK_BUFSIZE];
 	struct {
@@ -154,15 +149,12 @@ int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed)
 	} req;
 	int address_bits_matched;
 
+	assert(conf_ptr != NULL);
 
-	if (local)
+	if (conf_ptr->local != NULL)
 		goto found;
 
-
-	me = NULL;
 	address_bits_matched = 0;
-	if (mep)
-		*mep = NULL;
 	fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
 	if (fd < 0) {
 		log_error("failed to create netlink socket");
@@ -244,11 +236,11 @@ int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed)
 				 * the function find_address will try to return another, most similar
 				 * address (with the longest possible number of same bytes). */
 				if (ifa->ifa_prefixlen > address_bits_matched) {
-					find_address(ipaddr,
-							ifa->ifa_family, ifa->ifa_prefixlen,
-							fuzzy_allowed, &me, &address_bits_matched);
+					find_address(conf_ptr, ipaddr,
+					             ifa->ifa_family, ifa->ifa_prefixlen,
+					             fuzzy_allowed, &me, &address_bits_matched);
 
-					if (me) {
+					if (me != NULL) {
 						log_debug("found myself at %s (%d bits matched)",
 								site_string(me), address_bits_matched);
 					}
@@ -260,11 +252,11 @@ int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed)
 				 * call the function find_address with disabled searching of
 				 * similar addresses (fuzzy_allowed == 0) */
 				else if (ifa->ifa_prefixlen == address_bits_matched) {
-					find_address(ipaddr,
-							ifa->ifa_family, ifa->ifa_prefixlen,
-							0 /* fuzzy_allowed */, &me, &address_bits_matched);
+					find_address(conf_ptr, ipaddr,
+					             ifa->ifa_family, ifa->ifa_prefixlen,
+					             0 /* fuzzy_allowed */, &me, &address_bits_matched);
 
-					if (me) {
+					if (me != NULL) {
 						log_debug("found myself at %s (exact match)",
 								site_string(me));
 					}
@@ -276,23 +268,20 @@ int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed)
 
 	close(fd);
 
-	if (!me)
+	if (me == NULL)
 		return 0;
 
 	me->local = 1;
-	local = me;
+	conf_ptr->local = me;
 found:
-	if (mep)
-		*mep = local;
 	return 1;
 }
 
-int find_myself(struct booth_site **mep, int fuzzy_allowed)
+int find_myself(struct booth_config *conf_ptr, int fuzzy_allowed)
 {
-	return _find_myself(AF_INET6, mep, fuzzy_allowed) ||
-		_find_myself(AF_INET, mep, fuzzy_allowed);
+	return _find_myself(conf_ptr, AF_INET6, fuzzy_allowed)
+	       || _find_myself(conf_ptr, AF_INET, fuzzy_allowed);
 }
-
 
 /** Checks the header fields for validity.
  * cf. init_header().
@@ -372,9 +361,8 @@ retry:
 	return 0;
 }
 
-
 /* Only used for client requests (tcp) */
-int read_client(struct client *req_cl)
+static int read_client(struct client *req_cl)
 {
 	char *msg;
 	struct boothc_header *header;
@@ -424,9 +412,8 @@ int read_client(struct client *req_cl)
 	return 0;
 }
 
-
 /* Only used for client requests (tcp) */
-static void process_connection(int ci)
+static void process_connection(struct booth_config *conf_ptr, int ci)
 {
 	struct client *req_cl;
 	void *msg = NULL;
@@ -447,7 +434,7 @@ static void process_connection(int ci)
 	}
 
 	header = (struct boothc_header *)msg;
-	if (check_auth(NULL, msg, ntohl(header->length))) {
+	if (check_auth(conf_ptr, NULL, msg, ntohl(header->length))) {
 		errc = RLT_AUTH;
 		goto send_err;
 	}
@@ -457,15 +444,15 @@ static void process_connection(int ci)
 	 * result a second later? */
 	switch (ntohl(header->cmd)) {
 	case CMD_LIST:
-		ticket_answer_list(req_cl->fd);
+		ticket_answer_list(conf_ptr, req_cl->fd);
 		goto kill;
 	case CMD_PEERS:
-		list_peers(req_cl->fd);
+		list_peers(conf_ptr, req_cl->fd);
 		goto kill;
 
 	case CMD_GRANT:
 	case CMD_REVOKE:
-		if (process_client_request(req_cl, msg) == 1)
+		if (process_client_request(conf_ptr, req_cl, msg) == 1)
 			goto kill; /* request processed definitely, close connection */
 		else
 			return;
@@ -474,7 +461,7 @@ static void process_connection(int ci)
 	case ATTR_GET:
 	case ATTR_SET:
 	case ATTR_DEL:
-		if (process_attr_request(req_cl, msg) == 1)
+		if (process_attr_request(conf_ptr, req_cl, msg) == 1)
 			goto kill; /* request processed definitely, close connection */
 		else
 			return;
@@ -490,8 +477,9 @@ static void process_connection(int ci)
 	return;
 
 send_err:
-	init_header(&err_reply.header, CL_RESULT, 0, 0, errc, 0, sizeof(err_reply));
-	send_client_msg(req_cl->fd, &err_reply);
+	init_header(conf_ptr, &err_reply.header, CL_RESULT, 0, 0, errc, 0,
+	            sizeof(err_reply));
+	send_client_msg(conf_ptr, req_cl->fd, &err_reply);
 
 kill:
 	deadfn = req_cl->deadfn;
@@ -502,7 +490,7 @@ kill:
 }
 
 
-static void process_tcp_listener(int ci)
+static void process_tcp_listener(struct booth_config *conf_ptr, int ci)
 {
 	int fd, i, flags, one = 1;
 	socklen_t addrlen = sizeof(struct sockaddr);
@@ -525,10 +513,12 @@ static void process_tcp_listener(int ci)
 	log_debug("client connection %d fd %d", i, fd);
 }
 
-int setup_tcp_listener(int test_only)
+int setup_tcp_listener(struct booth_site *local, int test_only)
 {
 	int s, rv;
 	int one = 1;
+
+	assert(local != NULL);
 
 	s = socket(local->family, SOCK_STREAM, 0);
 	if (s == -1) {
@@ -566,19 +556,21 @@ int setup_tcp_listener(int test_only)
 	return s;
 }
 
-static int booth_tcp_init(void * unused __attribute__((unused)))
+static int booth_tcp_init(struct booth_config *conf_ptr,
+                          void * unused __attribute__((unused)))
 {
 	int rv;
 
-	if (get_local_id() < 0)
+	assert(conf_ptr != NULL && conf_ptr->transport != NULL);
+
+	if (get_local_id(conf_ptr) < 0)
 		return -1;
 
-	rv = setup_tcp_listener(0);
+	rv = setup_tcp_listener(conf_ptr->local, 0);
 	if (rv < 0)
 		return rv;
 
-	client_add(rv, booth_transport + TCP,
-			process_tcp_listener, NULL);
+	client_add(rv, *conf_ptr->transport + TCP, process_tcp_listener, NULL);
 
 	return 0;
 }
@@ -639,7 +631,7 @@ done:
 	return 0;
 }
 
-int booth_tcp_open(struct booth_site *to)
+static int booth_tcp_open(struct booth_site *to)
 {
 	int s, rv;
 
@@ -674,11 +666,40 @@ error:
 	return -1;
 }
 
-int booth_tcp_send(struct booth_site *to, void *buf, int len)
+/* data + (datalen-sizeof(struct hmac)) points to struct hmac
+ * i.e. struct hmac is always tacked on the payload
+ */
+static int add_hmac(struct booth_config *conf_ptr, void *data, int len)
+{
+	int rv = 0;
+#if HAVE_LIBGCRYPT || HAVE_LIBMHASH
+	int payload_len;
+	struct hmac *hp;
+
+	assert(conf_ptr != NULL);
+
+	if (!is_auth_req(conf_ptr))
+		return 0;
+
+	payload_len = len - sizeof(struct hmac);
+	hp = (struct hmac *)((unsigned char *)data + payload_len);
+	hp->hid = htonl(BOOTH_HASH);
+	memset(hp->hash, 0, BOOTH_MAC_SIZE);
+	rv = calc_hmac(data, payload_len, BOOTH_HASH, hp->hash,
+	               conf_ptr->authkey, conf_ptr->authkey_len);
+	if (rv < 0) {
+		log_error("internal error: cannot calculate mac");
+	}
+#endif
+	return rv;
+}
+
+static int booth_tcp_send(struct booth_config *conf_ptr,
+                          struct booth_site *to, void *buf, int len)
 {
 	int rv;
 
-	rv = add_hmac(buf, len);
+	rv = add_hmac(conf_ptr, buf, len);
 	if (!rv)
 		rv = do_write(to->tcp_fd, buf, len);
 
@@ -697,7 +718,8 @@ static int booth_tcp_recv(struct booth_site *from, void *buf, int len)
 	return got;
 }
 
-static int booth_tcp_recv_auth(struct booth_site *from, void *buf, int len)
+static int booth_tcp_recv_auth(struct booth_config *conf_ptr,
+                               struct booth_site *from, void *buf, int len)
 {
 	int got, total;
 	int payload_len;
@@ -709,9 +731,10 @@ static int booth_tcp_recv_auth(struct booth_site *from, void *buf, int len)
 		return got;
 	}
 	total = got;
-	if (is_auth_req()) {
+	if (is_auth_req(conf_ptr)) {
 		got = booth_tcp_recv(from, (unsigned char *)buf+payload_len, sizeof(struct hmac));
-		if (got != sizeof(struct hmac) || check_auth(from, buf, len)) {
+		if (got != sizeof(struct hmac)
+				|| check_auth(conf_ptr, from, buf, len)) {
 			return -1;
 		}
 		total += got;
@@ -734,11 +757,13 @@ static int booth_tcp_exit(void)
 	return 0;
 }
 
-static int setup_udp_server(void)
+static int setup_udp_server(struct booth_site *local)
 {
 	int rv, fd;
 	int one = 1;
 	unsigned int recvbuf_size;
+
+	assert(local != NULL);
 
 	fd = socket(local->family, SOCK_DGRAM, 0);
 	if (fd == -1) {
@@ -763,8 +788,8 @@ static int setup_udp_server(void)
 
 	if (rv == -1) {
 		log_error("failed to bind UDP socket to [%s]:%d: %s",
-				site_string(local), booth_conf->port,
-				strerror(errno));
+		          site_string(local), site_port(local),
+		          strerror(errno));
 		goto ex;
 	}
 
@@ -787,7 +812,7 @@ ex:
 
 
 /* Receive/process callback for UDP */
-static void process_recv(int ci)
+static void process_recv(struct booth_config *conf_ptr, int ci)
 {
 	struct sockaddr_storage sa;
 	int rv;
@@ -819,29 +844,35 @@ static void process_recv(int ci)
 	}
 }
 
-static int booth_udp_init(void *f)
+static int booth_udp_init(struct booth_config *conf_ptr, void *f)
 {
 	int rv;
 
-	rv = setup_udp_server();
+	assert(conf_ptr != NULL && conf_ptr->transport != NULL);
+	assert(conf_ptr->local != NULL);
+
+	rv = setup_udp_server(conf_ptr->local);
 	if (rv < 0)
 		return rv;
 
 	deliver_fn = f;
-	client_add(local->udp_fd,
-			booth_transport + UDP,
-			process_recv, NULL);
+	client_add(conf_ptr->local->udp_fd, *conf_ptr->transport + UDP,
+	           process_recv, NULL);
 
 	return 0;
 }
 
-int booth_udp_send(struct booth_site *to, void *buf, int len)
+static int booth_udp_send(struct booth_config *conf_ptr, struct booth_site *to,
+                          void *buf, int len)
 {
 	int rv;
 
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
+
 	to->sent_cnt++;
-	rv = sendto(local->udp_fd, buf, len, MSG_NOSIGNAL,
-			(struct sockaddr *)&to->sa6, to->saddrlen);
+	rv = sendto(conf_ptr->local->udp_fd, buf, len, MSG_NOSIGNAL,
+	            (struct sockaddr *)&to->sa6, to->saddrlen);
 	if (rv == len) {
 		rv = 0;
 	} else if (rv < 0) {
@@ -860,33 +891,37 @@ int booth_udp_send(struct booth_site *to, void *buf, int len)
 	return rv;
 }
 
-int booth_udp_send_auth(struct booth_site *to, void *buf, int len)
+int booth_udp_send_auth(struct booth_config *conf_ptr,
+                        struct booth_site *to, void *buf, int len)
 {
 	int rv;
 
-	rv = add_hmac(buf, len);
+	rv = add_hmac(conf_ptr, buf, len);
 	if (rv < 0)
 		return rv;
-	return booth_udp_send(to, buf, len);
+	return booth_udp_send(conf_ptr, to, buf, len);
 }
 
-static int booth_udp_broadcast_auth(void *buf, int len)
+static int booth_udp_broadcast_auth(struct booth_config *conf_ptr,
+                                    void *buf, int len)
 {
 	int i, rv, rvs;
 	struct booth_site *site;
 
+	assert(conf_ptr != NULL);
+	assert(conf_ptr->local != NULL);
 
-	if (!booth_conf || !booth_conf->site_count)
+	if (conf_ptr == NULL || !conf_ptr->site_count)
 		return -1;
 
-	rv = add_hmac(buf, len);
+	rv = add_hmac(conf_ptr, buf, len);
 	if (rv < 0)
 		return rv;
 
 	rvs = 0;
-	foreach_node(i, site) {
-		if (site != local) {
-			rv = booth_udp_send(site, buf, len);
+	FOREACH_NODE(conf_ptr, i, site) {
+		if (site != conf_ptr->local) {
+			rv = booth_udp_send(conf_ptr, site, buf, len);
 			if (!rvs)
 				rvs = rv;
 		}
@@ -901,14 +936,16 @@ static int booth_udp_exit(void)
 }
 
 /* SCTP transport layer has not been developed yet */
-static int booth_sctp_init(void *f __attribute__((unused)))
+static int booth_sctp_init(struct booth_config *conf_ptr __attribute__((unused)),
+                           void *f __attribute__((unused)))
 {
 	return 0;
 }
 
-static int booth_sctp_send(struct booth_site * to __attribute__((unused)),
-			   void *buf __attribute__((unused)),
-			   int len __attribute__((unused)))
+static int booth_sctp_send(struct booth_config *conf_ptr __attribute__((unused)),
+                           struct booth_site * to __attribute__((unused)),
+                           void *buf __attribute__((unused)),
+                           int len __attribute__((unused)))
 {
 	return 0;
 }
@@ -928,7 +965,9 @@ static int return_0(void)
 {
 	return 0;
 }
-const struct booth_transport booth_transport[TRANSPORT_ENTRIES] = {
+
+/* semi-hidden, only main.c to have a knowledge about this */
+const booth_transport_table_t booth__transport = {
 	[TCP] = {
 		.name = "TCP",
 		.init = booth_tcp_init,
@@ -959,32 +998,6 @@ const struct booth_transport booth_transport[TRANSPORT_ENTRIES] = {
 	}
 };
 
-/* data + (datalen-sizeof(struct hmac)) points to struct hmac
- * i.e. struct hmac is always tacked on the payload
- */
-int add_hmac(void *data, int len)
-{
-	int rv = 0;
-#if HAVE_LIBGCRYPT || HAVE_LIBMHASH
-	int payload_len;
-	struct hmac *hp;
-
-	if (!is_auth_req())
-		return 0;
-
-	payload_len = len - sizeof(struct hmac);
-	hp = (struct hmac *)((unsigned char *)data + payload_len);
-	hp->hid = htonl(BOOTH_HASH);
-	memset(hp->hash, 0, BOOTH_MAC_SIZE);
-	rv = calc_hmac(data, payload_len, BOOTH_HASH, hp->hash,
-		booth_conf->authkey, booth_conf->authkey_len);
-	if (rv < 0) {
-		log_error("internal error: cannot calculate mac");
-	}
-#endif
-	return rv;
-}
-
 #if HAVE_LIBGCRYPT || HAVE_LIBMHASH
 
 /* TODO: we need some client identification for logging */
@@ -993,14 +1006,17 @@ int add_hmac(void *data, int len)
 /* verify the validity of timestamp from the header
  * the timestamp needs to be either greater than the one already
  * recorded for the site or, and this is checked for clients,
- * not to be older than booth_conf->maxtimeskew
+ * not to be older than conf_ptr->maxtimeskew
  * update the timestamp for the site, if this packet is from a
  * site
  */
-static int verify_ts(struct booth_site *from, void *buf, int len)
+static int verify_ts(struct booth_config *conf_ptr, struct booth_site *from,
+                     void *buf, int len)
 {
 	struct boothc_header *h;
 	struct timeval tv, curr_tv, now;
+
+	assert(conf_ptr != NULL);
 
 	if (len < sizeof(*h)) {
 		log_error("%s: packet too short", peer_string(from));
@@ -1020,11 +1036,11 @@ static int verify_ts(struct booth_site *from, void *buf, int len)
 	}
 
 	gettimeofday(&now, NULL);
-	now.tv_sec -= booth_conf->maxtimeskew;
+	now.tv_sec -= conf_ptr->maxtimeskew;
 	if (timercmp(&tv, &now, >))
 		goto accept;
 	log_error("%s: packet timestamp older than %d seconds",
-		peer_string(from), booth_conf->maxtimeskew);
+	          peer_string(from), conf_ptr->maxtimeskew);
 	return -1;
 
 accept:
@@ -1036,14 +1052,17 @@ accept:
 }
 #endif
 
-int check_auth(struct booth_site *from, void *buf, int len)
+int check_auth(struct booth_config *conf_ptr, struct booth_site *from,
+               void *buf, int len)
 {
 	int rv = 0;
 #if HAVE_LIBGCRYPT || HAVE_LIBMHASH
 	int payload_len;
 	struct hmac *hp;
 
-	if (!is_auth_req())
+	assert(conf_ptr != NULL);
+
+	if (!is_auth_req(conf_ptr))
 		return 0;
 
 	payload_len = len - sizeof(struct hmac);
@@ -1054,9 +1073,9 @@ int check_auth(struct booth_site *from, void *buf, int len)
 	}
 	hp = (struct hmac *)((unsigned char *)buf + payload_len);
 	rv = verify_hmac(buf, payload_len, ntohl(hp->hid), hp->hash,
-		booth_conf->authkey, booth_conf->authkey_len);
+	                 conf_ptr->authkey, conf_ptr->authkey_len);
 	if (!rv) {
-		rv = verify_ts(from, buf, len);
+		rv = verify_ts(conf_ptr, from, buf, len);
 	}
 	if (rv != 0) {
 		log_error("%s: failed to authenticate", peer_string(from));
@@ -1065,22 +1084,23 @@ int check_auth(struct booth_site *from, void *buf, int len)
 	return rv;
 }
 
-int send_data(int fd, void *data, int datalen)
+int send_data(struct booth_config *conf_ptr, int fd, void *data, int datalen)
 {
 	int rv = 0;
 
-	rv = add_hmac(data, datalen);
+	rv = add_hmac(conf_ptr, data, datalen);
 	if (!rv)
 		rv = do_write(fd, data, datalen);
 
 	return rv;
 }
 
-int send_header_plus(int fd, struct boothc_hdr_msg *msg, void *data, int len)
+int send_header_plus(struct booth_config *conf_ptr, int fd,
+                     struct boothc_hdr_msg *msg, void *data, int len)
 {
 	int rv;
 
-	rv = send_data(fd, msg, sendmsglen(msg)-len);
+	rv = send_data(conf_ptr, fd, msg, sendmsglen(msg)-len);
 
 	if (rv >= 0 && len)
 		rv = do_write(fd, data, len);
@@ -1089,7 +1109,7 @@ int send_header_plus(int fd, struct boothc_hdr_msg *msg, void *data, int len)
 }
 
 /* UDP message receiver (see also deliver_fn declaration's comment) */
-int message_recv(void *msg, int msglen)
+int message_recv(struct booth_config *conf_ptr, void *msg, int msglen)
 {
 	uint32_t from;
 	struct boothc_header *header;
@@ -1098,7 +1118,7 @@ int message_recv(void *msg, int msglen)
 	header = (struct boothc_header *)msg;
 
 	from = ntohl(header->from);
-	if (!find_site_by_id(from, &source)) {
+	if (!find_site_by_id(conf_ptr, from, &source)) {
 		/* caller knows the actual source address, pass
 		   the (assuredly) positive number and let it report */
 		from = from ? from : ~from;  /* avoid 0 (success) */
@@ -1114,7 +1134,7 @@ int message_recv(void *msg, int msglen)
 		return -1;
 	}
 
-	if (check_auth(source, msg, msglen)) {
+	if (check_auth(conf_ptr, source, msg, msglen)) {
 		log_error("%s failed to authenticate", site_string(source));
 		source->sec_cnt++;
 		return -1;
@@ -1124,8 +1144,8 @@ int message_recv(void *msg, int msglen)
 		/* not used, clients send/retrieve attributes directly
 		 * from sites
 		 */
-		return attr_recv(msg, source);
+		return attr_recv(conf_ptr, msg, source);
 	} else {
-		return ticket_recv(msg, source);
+		return ticket_recv(conf_ptr, msg, source);
 	}
 }

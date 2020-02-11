@@ -24,12 +24,30 @@ enum {
 	RUNCMD_MORE = -2,
 };
 
-int run_handler(struct ticket_config *tk);
+/**
+ * @internal
+ * First stage of incoming datagram handling (authentication)
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] tk ticket at hand
+ *
+ * @return 0, #RUNCMD_ERR, #RUNCMD_MORE
+ */
+int run_handler(struct booth_config *conf_ptr, struct ticket_config *tk);
+
 int tk_test_exit_status(struct ticket_config *tk);
 void ignore_ext_test(struct ticket_config *tk);
 int is_ext_prog_running(struct ticket_config *tk);
 void ext_prog_timeout(struct ticket_config *tk);
-void wait_child(int sig);
+
+/**
+ * @internal
+ * SIGCHLD handling so as to mark the handler-at-a-ticket finalization
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] tk ticket at hand
+ */
+void wait_child(struct booth_config *conf_ptr);
 
 #define set_progstate(tk, newst) do { \
 	if (!(newst)) tk_log_debug("progstate reset"); \

@@ -35,8 +35,15 @@ extern int TIME_RES;
 #define DEFAULT_RETRIES			10
 
 
-#define foreach_ticket(i_,t_) for(i_=0; (t_=booth_conf->ticket+i_, i_<booth_conf->ticket_count); i_++)
-#define foreach_node(i_,n_) for(i_=0; (n_=booth_conf->site+i_, i_<booth_conf->site_count); i_++)
+#define FOREACH_TICKET(b_, i_, t_) \
+	for (i_ = 0; \
+	     (t_ = (b_)->ticket + i_, i_ < (b_)->ticket_count); \
+	     i_++)
+
+#define FOREACH_NODE(b_, i_, n_) \
+	for (i_ = 0; \
+	     (n_ = (b_)->site + i_, i_ < (b_)->site_count); \
+	     i_++)
 
 #define set_leader(tk, who) do { \
 	if (who == NULL) { \
@@ -88,52 +95,219 @@ extern int TIME_RES;
 
 void save_committed_tkt(struct ticket_config *tk);
 void disown_ticket(struct ticket_config *tk);
-int disown_if_expired(struct ticket_config *tk);
-int check_ticket(char *ticket, struct ticket_config **tc);
-int check_site(char *site, int *local);
-int grant_ticket(struct ticket_config *ticket);
-int revoke_ticket(struct ticket_config *ticket);
-int list_ticket(char **pdata, unsigned int *len);
 
-int ticket_recv(void *buf, struct booth_site *source);
+/* XXX UNUSED */
+int disown_if_expired(struct ticket_config *tk);
+
+/**
+ * @internal
+ * Pick a ticket structure based on given name, with some apriori sanity checks
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] ticket name of the ticket to search for
+ * @param[out] found place the reference here when found
+ *
+ * @return 0 on failure, see @find_ticket_by_name otherwise
+ */
+int check_ticket(struct booth_config *conf_ptr, const char *ticket,
+                 struct ticket_config **tc);
+
+/**
+ * @internal
+ * Check whether given site is valid
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] site which member to look for
+ * @param[out] is_local store whether the member is local on success
+ *
+ * @note XXX UNUSED
+ *
+ * @return 1 on success (found and valid), 0 otherwise
+ */
+int check_site(struct booth_config *conf_ptr, const char *site,
+               int *local);
+
+/**
+ * @internal
+ * Second stage of incoming datagram handling (after authentication)
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] buf raw message to act upon
+ * @param[in] source member originating this message
+ *
+ * @return 0 on success or negative value (-1 or -errno) on error
+ */
+int ticket_recv(struct booth_config *conf_ptr, void *buf,
+                struct booth_site *source);
+
 void reset_ticket(struct ticket_config *tk);
 void reset_ticket_and_set_no_leader(struct ticket_config *tk);
-void update_ticket_state(struct ticket_config *tk, struct booth_site *sender);
-int setup_ticket(void);
-int check_max_len_valid(const char *s, int max);
 
-int do_grant_ticket(struct ticket_config *ticket, int options);
-int do_revoke_ticket(struct ticket_config *tk);
+/**
+ * @internal
+ * Based on the current state and circumstances, make a state transition
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] tk ticket at hand
+ * @param[in] sender site structure of the sender
+ */
+void update_ticket_state(struct booth_config *conf_ptr,
+                         struct ticket_config *tk, struct booth_site *sender);
 
-int find_ticket_by_name(const char *ticket, struct ticket_config **found);
+/**
+ * @internal
+ * Initial "consult local pacemaker and booth peers" inquiries
+ *
+ * @param[inout] conf_ptr config object to use as a starting point
+ *
+ * @return 0 (for the time being)
+ */
+int setup_ticket(struct booth_config *conf_ptr);
 
-void set_ticket_wakeup(struct ticket_config *tk);
-int postpone_ticket_processing(struct ticket_config *tk);
+/**
+ * @internal
+ * Apply the next step with the ticket if possible.
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] tk ticket at hand
+ */
+void set_ticket_wakeup(struct booth_config *conf_ptr,
+                       struct ticket_config *tk);
 
-int acquire_ticket(struct ticket_config *tk, cmd_reason_t reason);
+/**
+ * @internal
+ * Implementation of the ticket listing
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] file descriptor of the socket to respond to
+ *
+ * @return see @list_ticket and @send_header_plus
+ */
+int ticket_answer_list(struct booth_config *conf_ptr, int fd);
 
-int ticket_answer_list(int fd);
-int process_client_request(struct client *req_client, void *buf);
+/**
+ * @internal
+ * Process request from the client (as opposed to peer daemon)
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] req_client client structure of the sender
+ * @param[in] buf message itself
+ *
+ * @return 1 on success, 0 when not done with the message, yet
+ */
+int process_client_request(struct booth_config *conf_ptr,
+                           struct client *req_client, void *buf);
 
-int ticket_write(struct ticket_config *tk);
+/**
+ * @internal
+ * Cause the ticket storage backend to persist the ticket
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] tk ticket at hand
+ *
+ * @return 0 on success, 1 when not carried out for being dangerous
+ */
+int ticket_write(struct booth_config *conf_ptr,
+                 struct ticket_config *tk);
 
-void process_tickets(void);
-void tickets_log_info(void);
+/**
+ * @internal
+ * Mainloop of booth ticket handling
+ *
+ * @param[inout] conf_ptr config object to refer to
+ */
+void process_tickets(struct booth_config *conf_ptr);
+
+/**
+ * @internal
+ * For each ticket, log some notable properties
+ *
+ * @param[inout] conf_ptr config object to refer to
+ */
+void tickets_log_info(struct booth_config *conf_ptr);
+
 char *state_to_string(uint32_t state_ho);
-int send_reject(struct booth_site *dest, struct ticket_config *tk,
-	cmd_result_t code, struct boothc_ticket_msg *in_msg);
-int send_msg (int cmd, struct ticket_config *tk,
-	struct booth_site *dest, struct boothc_ticket_msg *in_msg);
-int notify_client(struct ticket_config *tk, int client_fd,
-	struct boothc_ticket_msg *msg);
-int ticket_broadcast(struct ticket_config *tk, cmd_request_t cmd, cmd_request_t expected_reply, cmd_result_t res, cmd_reason_t reason);
 
-int leader_update_ticket(struct ticket_config *tk);
+/**
+ * @internal
+ * For a given ticket and recipient site, send a rejection
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] dest site structure of the recipient
+ * @param[in] tk ticket at hand
+ * @param[in] code further detail for the rejection
+ * @param[in] in_msg message this is going to be a response to
+ */
+int send_reject(struct booth_config *conf_ptr, struct booth_site *dest,
+                struct ticket_config *tk, cmd_result_t code,
+                struct boothc_ticket_msg *in_msg);
+
+/**
+ * @internal
+ * For a given ticket, recipient site and possibly its message, send a response
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] cmd what type of message is to be sent
+ * @param[in] dest site structure of the recipient
+ * @param[in] in_msg message this is going to be a response to
+ */
+int send_msg(struct booth_config *conf_ptr, int cmd, struct ticket_config *tk,
+             struct booth_site *dest, struct boothc_ticket_msg *in_msg);
+
+/**
+ * @internal
+ * Notify client at particular socket, regarding particular ticket
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] tk ticket at hand
+ * @param[in] fd file descriptor of the socket to respond to
+ * @param[in] msg input message being responded to
+ */
+int notify_client(struct booth_config *conf_ptr, struct ticket_config *tk,
+                  int client_fd, struct boothc_ticket_msg *msg);
+
+/**
+ * @internal
+ * Broadcast the current state of the ticket as seen from local perspective
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] tk ticket at hand
+ * @param[in] cmd what type of message is to be sent
+ * @param[in] expected_reply what to expect in response
+ * @param[in] res may carry further detail with cmd == OP_REJECTED
+ * @param[in] reason trigger of this broadcast
+ */
+int ticket_broadcast(struct booth_config *conf_ptr,
+                     struct ticket_config *tk, cmd_request_t cmd,
+                     cmd_request_t expected_reply, cmd_result_t res,
+                     cmd_reason_t reason);
+
+/**
+ * @internal
+ * Update the ticket (+broadcast to that effect) and/or write it to the backend
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] tk ticket at hand
+ *
+ * @return 0 or see #ticket_broadcast
+ */
+int leader_update_ticket(struct booth_config *conf_ptr,
+                         struct ticket_config *tk);
+
 void add_random_delay(struct ticket_config *tk);
-void schedule_election(struct ticket_config *tk, cmd_reason_t reason);
+
+/**
+ * @internal
+ * Make it so the nearest ticket swipe will start election
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] tk ticket at hand
+ * @param[in] reason explains why new election is conducted
+ */
+void schedule_election(struct booth_config *conf_ptr, struct ticket_config *tk,
+                       cmd_reason_t reason);
 
 int is_manual(struct ticket_config *tk);
-int number_sites_marked_as_granted(struct ticket_config *tk);
 
 int check_attr_prereq(struct ticket_config *tk, grant_type_e grant_type);
 

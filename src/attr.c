@@ -62,12 +62,12 @@ void print_geostore_usage(void)
  * ticket, attr name, attr value
  */
 
-int test_attr_reply(cmd_result_t reply_code, cmd_request_t cmd)
+int test_attr_reply(struct command_line *cl, cmd_result_t reply_code)
 {
 	int rv = 0;
 	const char *op_str = "";
 
-	switch (cmd) {
+	switch (cl->type) {
 	case ATTR_SET:	op_str = "set";		break;
 	case ATTR_GET:	op_str = "get";		break;
 	case ATTR_LIST:	op_str = "list";	break;
@@ -86,7 +86,7 @@ int test_attr_reply(cmd_result_t reply_code, cmd_request_t cmd)
 
 	case RLT_SYNC_SUCC:
 	case RLT_SUCCESS:
-		if (cmd == ATTR_SET)
+		if (cl->type == ATTR_SET)
 			log_info("%s succeeded!", op_str);
 		rv = 0;
 		break;
@@ -98,13 +98,13 @@ int test_attr_reply(cmd_result_t reply_code, cmd_request_t cmd)
 
 	case RLT_INVALID_ARG:
 		log_error("ticket \"%s\" does not exist",
-				cl.attr_msg.attr.tkt_id);
+		          cl->attr_msg.attr.tkt_id);
 		rv = 1;
 		break;
 
 	case RLT_NO_SUCH_ATTR:
 		log_error("attribute \"%s\" not set",
-				cl.attr_msg.attr.name);
+		          cl->attr_msg.attr.name);
 		rv = 1;
 		break;
 
@@ -149,7 +149,7 @@ static int read_server_reply(
 	return rv;
 }
 
-int do_attr_command(cmd_request_t cmd)
+int do_attr_command(struct command_line *cl, struct booth_config *conf_ptr)
 {
 	struct booth_site *site = NULL;
 	struct boothc_header *header;
@@ -157,34 +157,39 @@ int do_attr_command(cmd_request_t cmd)
 	int len, rv = -1;
 	char *msg = NULL;
 
-	if (!*cl.site)
-		site = local;
+	assert(conf_ptr != NULL && conf_ptr->transport != NULL);
+	assert(conf_ptr->local != NULL);
+	assert(cl != NULL);
+
+	if (*cl->site == '\0')
+		site = conf_ptr->local;
 	else {
-		if (!find_site_by_name(cl.site, &site, 1)) {
-			log_error("Site \"%s\" not configured.", cl.site);
+		if (!find_site_by_name(conf_ptr, cl->site, &site, 1)) {
+			log_error("Site \"%s\" not configured.", cl->site);
 			goto out_close;
 		}
 	}
 
 	if (site->type == ARBITRATOR) {
-		if (site == local) {
+		if (site == conf_ptr->local) {
 			log_error("We're just an arbitrator, no attributes here.");
 		} else {
-			log_error("%s is just an arbitrator, no attributes there.", cl.site);
+			log_error("%s is just an arbitrator, no attributes there.",
+			          cl->site);
 		}
 		goto out_close;
 	}
 
-	tpt = booth_transport + TCP;
+	tpt = *conf_ptr->transport + TCP;
 
-	init_header(&cl.attr_msg.header, cmd, 0, cl.options, 0, 0,
-		sizeof(cl.attr_msg));
+	init_header(conf_ptr, &cl->attr_msg.header, cl->type, 0, cl->options,
+	            0, 0, sizeof(cl->attr_msg));
 
 	rv = tpt->open(site);
 	if (rv < 0)
 		goto out_close;
 
-	rv = tpt->send(site, &cl.attr_msg, sendmsglen(&cl.attr_msg));
+	rv = tpt->send(conf_ptr, site, &cl->attr_msg, sendmsglen(&cl->attr_msg));
 	if (rv < 0)
 		goto out_close;
 
@@ -199,7 +204,7 @@ int do_attr_command(cmd_request_t cmd)
 	header = (struct boothc_header *)msg;
 	if (rv < 0) {
 		if (rv == -1)
-			(void)test_attr_reply(ntohl(header->result), cmd);
+			(void) test_attr_reply(cl, ntohl(header->result));
 		goto out_close;
 	}
 	len = ntohl(header->length);
@@ -210,12 +215,12 @@ int do_attr_command(cmd_request_t cmd)
 		goto out_close;
 	}
 
-	if (check_auth(site, msg, len)) {
+	if (check_auth(conf_ptr, site, msg, len)) {
 		log_error("%s failed to authenticate", site_string(site));
 		rv = -1;
 		goto out_close;
 	}
-	rv = test_attr_reply(ntohl(header->result), cmd);
+	rv = test_attr_reply(cl, ntohl(header->result));
 
 out_close:
 	if (tpt && site)
@@ -288,22 +293,31 @@ int store_geo_attr(struct ticket_config *tk, const char *name,
 	return 0;
 }
 
-static cmd_result_t attr_set(struct ticket_config *tk, struct boothc_attr_msg *msg)
+static cmd_result_t attr_set(struct booth_config *conf_ptr,
+                             struct ticket_config *tk,
+                             struct boothc_attr_msg *msg)
 {
 	int rc;
+
+	assert(conf_ptr != NULL);
 
 	rc = store_geo_attr(tk, msg->attr.name, msg->attr.val, 0);
 	if (rc) {
 		return RLT_SYNC_FAIL;
 	}
-	(void)pcmk_handler.set_attr(tk, msg->attr.name, msg->attr.val);
+	(void) conf_ptr->ticket_handler->set_attr(tk, msg->attr.name,
+	                                          msg->attr.val);
 	return RLT_SUCCESS;
 }
 
-static cmd_result_t attr_del(struct ticket_config *tk, struct boothc_attr_msg *msg)
+static cmd_result_t attr_del(struct booth_config *conf_ptr,
+                             struct ticket_config *tk,
+                             struct boothc_attr_msg *msg)
 {
 	gboolean rv;
 	gpointer orig_key, value;
+
+	assert(conf_ptr != NULL);
 
 	/*
 	 * lookup attr
@@ -320,7 +334,7 @@ static cmd_result_t attr_del(struct ticket_config *tk, struct boothc_attr_msg *m
 
 	rv = g_hash_table_remove(tk->attr, msg->attr.name);
 
-	(void)pcmk_handler.del_attr(tk, msg->attr.name);
+	(void) conf_ptr->ticket_handler->del_attr(tk, msg->attr.name);
 
 	return gbool2rlt(rv);
 }
@@ -346,7 +360,9 @@ append_attr(gpointer key, gpointer value, gpointer user_data)
 }
 
 
-static cmd_result_t attr_get(struct ticket_config *tk, int fd, struct boothc_attr_msg *msg)
+static cmd_result_t attr_get(struct booth_config *conf_ptr,
+                             struct ticket_config *tk, int fd,
+                             struct boothc_attr_msg *msg)
 {
 	cmd_result_t rv = RLT_SUCCESS;
 	struct boothc_hdr_msg hdr;
@@ -367,16 +383,18 @@ static cmd_result_t attr_get(struct ticket_config *tk, int fd, struct boothc_att
 		return RLT_SYNC_FAIL;
 	}
 	g_string_printf(attr_val, "%s\n", a->val);
-	init_header(&hdr.header, ATTR_GET, 0, 0, RLT_SUCCESS, 0,
-		sizeof(hdr) + attr_val->len);
-	if (send_header_plus(fd, &hdr, attr_val->str, attr_val->len))
+	init_header(conf_ptr, &hdr.header, ATTR_GET, 0, 0, RLT_SUCCESS, 0,
+	            sizeof(hdr) + attr_val->len);
+	if (send_header_plus(conf_ptr, fd, &hdr, attr_val->str, attr_val->len))
 		rv = RLT_SYNC_FAIL;
 	if (attr_val)
 		g_string_free(attr_val, FALSE);
 	return rv;
 }
 
-static cmd_result_t attr_list(struct ticket_config *tk, int fd, struct boothc_attr_msg *msg)
+static cmd_result_t attr_list(struct booth_config *conf_ptr,
+                              struct ticket_config *tk, int fd,
+                              struct boothc_attr_msg *msg)
 {
 	GString *data;
 	cmd_result_t rv;
@@ -393,16 +411,17 @@ static cmd_result_t attr_list(struct ticket_config *tk, int fd, struct boothc_at
 	}
 	g_hash_table_foreach(tk->attr, append_attr, data);
 
-	init_header(&hdr.header, ATTR_LIST, 0, 0, RLT_SUCCESS, 0,
-		sizeof(hdr) + data->len);
-	rv = send_header_plus(fd, &hdr, data->str, data->len);
+	init_header(conf_ptr, &hdr.header, ATTR_LIST, 0, 0, RLT_SUCCESS, 0,
+	            sizeof(hdr) + data->len);
+	rv = send_header_plus(conf_ptr, fd, &hdr, data->str, data->len);
 
 	if (data)
 		g_string_free(data, FALSE);
 	return rv;
 }
 
-int process_attr_request(struct client *req_client, void *buf)
+int process_attr_request(struct booth_config *conf_ptr,
+                         struct client *req_client, void *buf)
 {
 	cmd_result_t rv = RLT_SYNC_FAIL;
 	struct ticket_config *tk;
@@ -412,7 +431,7 @@ int process_attr_request(struct client *req_client, void *buf)
 
 	msg = (struct boothc_attr_msg *)buf;
 	cmd = ntohl(msg->header.cmd);
-	if (!check_ticket(msg->attr.tkt_id, &tk)) {
+	if (!check_ticket(conf_ptr, msg->attr.tkt_id, &tk)) {
 		log_warn("client referenced unknown ticket %s",
 				msg->attr.tkt_id);
 		rv = RLT_INVALID_ARG;
@@ -421,26 +440,26 @@ int process_attr_request(struct client *req_client, void *buf)
 
 	switch (cmd) {
 	case ATTR_LIST:
-		rv = attr_list(tk, req_client->fd, msg);
+		rv = attr_list(conf_ptr, tk, req_client->fd, msg);
 		if (rv)
 			goto reply_now;
 		return 1;
 	case ATTR_GET:
-		rv = attr_get(tk, req_client->fd, msg);
+		rv = attr_get(conf_ptr, tk, req_client->fd, msg);
 		if (rv)
 			goto reply_now;
 		return 1;
 	case ATTR_SET:
-		rv = attr_set(tk, msg);
+		rv = attr_set(conf_ptr, tk, msg);
 		break;
 	case ATTR_DEL:
-		rv = attr_del(tk, msg);
+		rv = attr_del(conf_ptr, tk, msg);
 		break;
 	}
 
 reply_now:
-	init_header(&hdr.header, CL_RESULT, 0, 0, rv, 0, sizeof(hdr));
-	send_header_plus(req_client->fd, &hdr, NULL, 0);
+	init_header(conf_ptr, &hdr.header, CL_RESULT, 0, 0, rv, 0, sizeof(hdr));
+	send_header_plus(conf_ptr, req_client->fd, &hdr, NULL, 0);
 	return 1;
 }
 
@@ -450,7 +469,8 @@ reply_now:
  * only clients retrieve/manage attributes and they connect
  * directly to the target site
  */
-int attr_recv(void *buf, struct booth_site *source)
+int attr_recv(struct booth_config *conf_ptr, void *buf,
+              struct booth_site *source)
 {
 	struct boothc_attr_msg *msg;
 	struct ticket_config *tk;
@@ -460,7 +480,7 @@ int attr_recv(void *buf, struct booth_site *source)
 	log_warn("unexpected attribute message from %s",
 			site_string(source));
 
-	if (!check_ticket(msg->attr.tkt_id, &tk)) {
+	if (!check_ticket(conf_ptr, msg->attr.tkt_id, &tk)) {
 		log_warn("got invalid ticket name %s from %s",
 				msg->attr.tkt_id, site_string(source));
 		source->invalid_cnt++;

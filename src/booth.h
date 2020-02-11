@@ -28,6 +28,7 @@
 #include <glib.h>
 #include "timer.h"
 
+struct booth_config;
 
 #define BOOTH_RUN_DIR "/var/run/booth/"
 #define BOOTH_LOG_DIR "/var/log"
@@ -323,9 +324,6 @@ struct booth_site {
 	uint32_t last_usecs;
 } __attribute__((packed));
 
-
-
-extern struct booth_site *local;
 extern struct booth_site *const no_leader;
 
 /** @} */
@@ -337,21 +335,50 @@ struct client {
 	const struct booth_transport *transport;
 	struct boothc_ticket_msg *msg;
 	int offset; /* bytes read so far into msg */
-	void (*workfn)(int);
+	void (*workfn)(struct booth_config *conf_ptr, int);
 	void (*deadfn)(int);
 };
 
 extern struct client *clients;
 extern struct pollfd *pollfds;
 
-
+/**
+ * @internal
+ * For an established-connection socket, finalize the handling callbacks
+ *
+ * @param[in] file descriptor of the respective client socket
+ * @param[inout] tpt precooked transport handling callbacks to finalize
+ * @param[in] workfn callback to process incoming messages
+ * @param[in] workfn callback to handle termination of the connection
+ *
+ * @return number of clients tracked (incl. this one)
+ */
 int client_add(int fd, const struct booth_transport *tpt,
-		void (*workfn)(int ci), void (*deadfn)(int ci));
-int find_client_by_fd(int fd);
-void safe_copy(char *dest, char *value, size_t buflen, const char *description);
-int update_authkey(void);
-void list_peers(int fd);
+               void (*workfn)(struct booth_config *conf_ptr, int ci),
+               void (*deadfn)(int ci));
 
+int find_client_by_fd(int fd);
+
+/**
+ * @internal
+ * Re-read and reflect possibly new contents of the authentication key file
+ *
+ * @note XXX UNUSED
+ *
+ * @param[inout] conf_ptr config object to refer to
+ *
+ * @return 0 in case of success, -1 otherwise
+ */
+int update_authkey(struct booth_config *conf_ptr);
+
+/**
+ * @internal
+ * Response to "get all servers we know about"
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] fd file descriptor of the socket to respond to
+ */
+void list_peers(struct booth_config *conf_ptr, int fd);
 
 struct command_line {
 	int type;		/* ACT_ */
@@ -364,8 +391,6 @@ struct command_line {
 	struct boothc_ticket_msg msg;
 	struct boothc_attr_msg attr_msg;
 };
-extern struct command_line cl;
-
 
 
 /* http://gcc.gnu.org/onlinedocs/gcc/Typeof.html */

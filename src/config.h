@@ -22,6 +22,9 @@
 
 #include <stdint.h>
 #include <sys/stat.h>
+
+struct booth_config;
+
 #include "booth.h"
 #include "timer.h"
 #include "raft.h"
@@ -321,20 +324,98 @@ struct booth_config {
     int ticket_count;
     int ticket_allocated;
     struct ticket_config *ticket;
+
+    int poll_timeout;
+    char path_to_self[BOOTH_PATH_LEN];
+
+    struct booth_site *local;
+
+    const booth_transport_table_t *transport;
+    const struct ticket_handler *ticket_handler;
 };
 
-extern struct booth_config *booth_conf;
+#define is_auth_req(b_) ((b_)->authkey[0] != '\0')
 
-#define is_auth_req() (booth_conf->authkey[0] != '\0')
+/**
+ * @internal
+ * Parse booth configuration file and store as structured data
+ *
+ * @param[inout] conf_pptr config object to free-alloc cycle & fill accordingly
+ * @param[in] transport transport handlers table
+ * @param[in] path where the configuration file is expected
+ * @param[in] type role currently being acted as
+ *
+ * @return 0 or negative value (-1 or -errno) on error
+ *
+ * @note To eventually dispose the associated memory, use #config_free.
+ */
+int read_config(struct booth_config **conf_pptr,
+                const booth_transport_table_t *transport,
+                const struct ticket_handler *ticket_handler,
+                const char *path, int type);
 
+/**
+ * @internal
+ * Memory disposal for the config object
+ *
+ * @param[inout] conf_ptr config object to free
+ */
+void config_free(struct booth_config *conf_ptr);
 
-int read_config(const char *path, int type);
+/**
+ * @internal
+ * Check booth configuration
+ *
+ * Currently it means checking that login user/group indeed exists,
+ * while converting it to respective numeric values for further use.
+ *
+ * @param[inout] conf_ptr config object to check
+ * @param[in] type role currently being acted as
+ *
+ * @return 0 or negative value (-1 or -errno) on error
+ */
+int check_config(struct booth_config *conf_ptr, int type);
 
-int check_config(int type);
+/**
+ * @internal
+ * Find site in booth configuration by resolved host name
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] site name to match against previously resolved host names
+ * @param[out] node relevant tracked data when found
+ * @param[in] any_type whether or not to consider also non-site members
+ *
+ * @return 0 if nothing found, or 1 when found (node assigned accordingly)
+ */
+int find_site_by_name(struct booth_config *conf_ptr, const char *site,
+                      struct booth_site **node, int any_type);
 
-int find_site_by_name(char *site, struct booth_site **node, int any_type);
-int find_site_by_id(uint32_t site_id, struct booth_site **node);
+/**
+ * @internal
+ * Find site in booth configuration by a hash (id)
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] site_id hash (id) to match against previously resolved ones
+ * @param[out] node relevant tracked data when found
+ *
+ * @return 0 if nothing found, or 1 when found (node assigned accordingly)
+ */
+int find_site_by_id(struct booth_config *conf_ptr, uint32_t site_id,
+                    struct booth_site **node);
 
 const char *type_to_string(int type);
+
+/**
+ * @internal
+ * Pick a ticket structure based on given name
+ *
+ * @param[inout] conf_ptr config object to refer to
+ * @param[in] ticket name of the ticket to search for
+ * @param[out] found place the reference here when found
+ *
+ * @return see @list_ticket and @send_header_plus
+ */
+int find_ticket_by_name(struct booth_config *conf_ptr,
+                        const char *ticket, struct ticket_config **found);
 
 #endif /* _CONFIG_H */
