@@ -128,7 +128,7 @@ struct boothc_header {
 	uint32_t result;
 
 	char data[0];
-} __attribute__((packed));
+};
 
 
 struct ticket_msg {
@@ -145,7 +145,7 @@ struct ticket_msg {
 
 	/* Perhaps we need to send a status along, too - like
 	 *  starting, running, stopping, error, ...? */
-} __attribute__((packed));
+};
 
 struct attr_msg {
 	/** Ticket name. */
@@ -156,7 +156,7 @@ struct attr_msg {
 
 	/** The value. */
 	boothc_attr_value val;
-} __attribute__((packed));
+};
 
 /* GEO attributes
  * attributes should be regularly updated.
@@ -171,7 +171,7 @@ struct geo_attr {
 	/** Who set it (currently unused)
 	struct booth_site *origin;
 	*/
-} __attribute__((packed));
+};
 
 struct hmac {
 	/** hash id, currently set to constant BOOTH_HASH */
@@ -180,24 +180,24 @@ struct hmac {
 	/** the calculated hash, BOOTH_MAC_SIZE is big enough to
 	 * accommodate the hash of type hid */
 	unsigned char hash[BOOTH_MAC_SIZE];
-} __attribute__((packed));
+};
 
 struct boothc_hdr_msg {
 	struct boothc_header header;
 	struct hmac hmac;
-} __attribute__((packed));
+};
 
 struct boothc_ticket_msg {
 	struct boothc_header header;
 	struct ticket_msg ticket;
 	struct hmac hmac;
-} __attribute__((packed));
+};
 
 struct boothc_attr_msg {
 	struct boothc_header header;
 	struct attr_msg attr;
 	struct hmac hmac;
-} __attribute__((packed));
+};
 
 typedef enum {
 	/* 0x43 = "C"ommands */
@@ -321,7 +321,7 @@ struct booth_site {
 	/** last timestamp seen from this site */
 	uint32_t last_secs;
 	uint32_t last_usecs;
-} __attribute__((packed));
+};
 
 
 
