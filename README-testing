@@ -47,16 +47,22 @@ is used to manipulate iptables rules.
 This is a sample pacemaker configuration for a single-node
 cluster:
 
-primitive booth ocf:pacemaker:booth-site
-primitive d-src1 ocf:heartbeat:Dummy
-rsc_ticket global-d-src1 ticket-A: d-src1
+    primitive booth ocf:pacemaker:booth-site
+    (pcs resource create booth ocf:pacemaker:booth-site)
+    primitive d-src1 ocf:heartbeat:Dummy
+    (pcs resource create d-src1 ocf:heartbeat:Dummy)
+    rsc_ticket global-d-src1 ticket-A: d-src1
+    (pcs constraint ticket add ticket-A d-src1 id=global-d-src1)
 
 Additionally, you may also add an ocf:booth:sharedrsc resource to
 also check that the ticket is granted always to only one site:
 
-primitive shared ocf:booth:sharedrsc \
-        params dir="10.2.13.82:/var/tmp/boothtestdir"
-rsc_ticket global-shared ticket-A: shared
+    primitive shared ocf:booth:sharedrsc \
+            params dir="10.2.13.82:/var/tmp/boothtestdir"
+    (pcs resource create shared ocf:booth:sharedrsc \
+            dir="10.2.13.82:/var/tmp/boothtestdir")
+    rsc_ticket global-shared ticket-A: shared
+    (pcs constraint ticket add ticket-A shared id=global-shared)
 
 Please adjust to your environment.
 

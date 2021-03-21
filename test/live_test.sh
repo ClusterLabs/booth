@@ -49,6 +49,9 @@ logf=test_booth.log
 SSH_OPTS="-o StrictHostKeyChecking=no -l root"
 iprules=/usr/share/booth/tests/test/booth_path
 : ${HA_LOGFACILITY:="syslog"}
+cli_driver=native
+which crm >/dev/null 2>&1 && cli_driver=crm || :
+which pcs >/dev/null 2>&1 && cli_driver=pcs || :
 
 get_site() {
 	local n=$1
@@ -158,7 +161,26 @@ runcmd() {
 	return $rc
 }
 manage_site() {
-	runcmd $1 crm -w resource $2 booth
+	local action=$2 resource=booth cmd
+	case "$action" in
+	start)
+		case "$cli_driver" in
+		native) action=Started;;
+		pcs)    action=enable;;
+		esac;;
+	stop)
+		case "$cli_driver" in
+		native) action=Stopped;;
+		pcs)    action=disable;;
+		esac;;
+	esac
+
+	case "$cli_driver" in
+	native) cmd="crm_resource --wait --resource \"$resource\" --set-parameter target-role --meta --parameter-value \"$action\"";;
+	crm)    cmd="crm -w resource \"$action\" \"$resource\"";;
+	pcs)    cmd="pcs resource \"$action\" \"$resource\" --wait";;
+	esac
+	runcmd $1 $cmd
 }
 manage_arbitrator() {
 	if ps 1 | grep -qws systemd; then
@@ -210,9 +232,15 @@ cleanup_booth() {
 cleanup_dep_rsc() {
 	local dep_rsc=`get_rsc`
 	test -z "$dep_rsc" && return
-	local h procs
+	local cmd h procs
+	case "$cli_driver" in
+	native) cmd="crm_resource --cleanup --resource \"$dep_rsc\"; crm_resource --wait";;
+	crm)    cmd="crm -w resource cleanup \"$dep_rsc\"";;
+	# XXX pcs does not support --wait here?
+	pcs)    cmd="pcs resource cleanup \"$dep_rsc\"; crm_resource --wait";;
+	esac
 	for h in $sites; do
-		runcmd $h crm -w resource cleanup $dep_rsc & procs="$! $procs"
+		runcmd $h $cmd & procs="$! $procs"
 	done >/dev/null 2>&1
 	wait $procs
 }
@@ -418,13 +446,34 @@ del_site_attr() {
 	run_site $site geostore delete $1
 }
 break_external_prog() {
-	run_site $1 crm configure "location $PREFNAME `get_rsc` rule -inf: defined \#uname"
+	local cmd
+	case "$cli_driver" in
+	native) cmd="cibadmin --create --scope constraints --xml-text=\""
+	        cmd="$cmd<rsc_location id='$PREFNAME' rsc='`get_rsc`'><rule id='rule_$PREFNAME' score='-INFINITY'>"
+		cmd="$cmd<expression id='expr_$PREFNAME' attribute='#uname' operation='define'/>"
+		cmd="$cmd</rule></rsc_location>\"";;
+	crm)    cmd="crm configure \"location $PREFNAME `get_rsc` rule -inf: defined \#uname\"";;
+	pcs)    cmd="pcs constraint location `get_rsc` rule id=$PREFNAME score=-INFINITY defined \#uname";;
+	esac
+	runcmd $1 $cmd
 }
 show_pref() {
-	run_site $1 crm configure show $PREFNAME > /dev/null
+	local cmd
+	case "$cli_driver" in
+	native) cmd="cibadmin --query --xpath \"//rsc_location[@id = '$PREFNAME']\"";;
+	crm)    cmd="crm configure show $PREFNAME > /dev/null";;
+	pcs)    cmd="pcs constraint show --full | grep -q $PREFNAME";;
+	esac
+	runcmd $1 $cmd
 }
 repair_external_prog() {
-	run_site $1 crm configure delete __pref_booth_live_test
+	local cmd
+	case "$cli_driver" in
+	native) cmd="cibadmin --delete --xpath \"//rsc_location[@id = '$PREFNAME']\"";;
+	crm)    cmd="crm configure delete $PREFNAME";;
+	pcs)    cmd="pcs constraint remove $PREFNAME";;
+	esac
+	runcmd $1 $cmd
 }
 get_tkt() {
 	grep "^ticket=" | head -1 | sed 's/ticket=//;s/"//g'
