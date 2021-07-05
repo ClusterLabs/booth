@@ -1257,11 +1257,15 @@ static void set_scheduler(void)
 
 	rlimit.rlim_cur = RLIM_INFINITY;
 	rlimit.rlim_max = RLIM_INFINITY;
-	setrlimit(RLIMIT_MEMLOCK, &rlimit);
-	rv = mlockall(MCL_CURRENT | MCL_FUTURE);
+	rv = setrlimit(RLIMIT_MEMLOCK, &rlimit);
 	if (rv < 0) {
-		log_error("mlockall failed");
-	}
+		log_error("setrlimit failed");
+	} else {
+                rv = mlockall(MCL_CURRENT | MCL_FUTURE);
+                if (rv < 0) {
+                        log_error("mlockall failed");
+                }
+        }
 
 	rv = sched_get_priority_max(SCHED_RR);
 	if (rv != -1) {
