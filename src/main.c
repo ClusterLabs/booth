@@ -762,7 +762,7 @@ static int do_command(cmd_request_t cmd)
 	else if (cmd == CMD_REVOKE)
 		op_str = "revoke";
 
-	rv = 0;
+	rv = -1;
 	site = NULL;
 
 	/* Always use TCP for client - at least for now. */
