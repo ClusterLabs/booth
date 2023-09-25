@@ -372,7 +372,7 @@ static cmd_result_t attr_get(struct ticket_config *tk, int fd, struct boothc_att
 	if (send_header_plus(fd, &hdr, attr_val->str, attr_val->len))
 		rv = RLT_SYNC_FAIL;
 	if (attr_val)
-		g_string_free(attr_val, FALSE);
+		g_string_free(attr_val, TRUE);
 	return rv;
 }
 
@@ -398,7 +398,7 @@ static cmd_result_t attr_list(struct ticket_config *tk, int fd, struct boothc_at
 	rv = send_header_plus(fd, &hdr, data->str, data->len);
 
 	if (data)
-		g_string_free(data, FALSE);
+		g_string_free(data, TRUE);
 	return rv;
 }
 
