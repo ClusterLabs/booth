@@ -357,6 +357,8 @@ static cmd_result_t attr_get(struct ticket_config *tk, int fd, struct boothc_att
 	 * lookup attr
 	 * send value
 	 */
+	if (!tk->attr)
+		return RLT_NO_SUCH_ATTR;
 
 	a = (struct geo_attr *)g_hash_table_lookup(tk->attr, msg->attr.name);
 	if (!a)
@@ -391,7 +393,9 @@ static cmd_result_t attr_list(struct ticket_config *tk, int fd, struct boothc_at
 		log_error("out of memory");
 		return RLT_SYNC_FAIL;
 	}
-	g_hash_table_foreach(tk->attr, append_attr, data);
+	if (tk->attr) {
+		g_hash_table_foreach(tk->attr, append_attr, data);
+	}
 
 	init_header(&hdr.header, ATTR_LIST, 0, 0, RLT_SUCCESS, 0,
 		sizeof(hdr) + data->len);
