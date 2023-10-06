@@ -36,7 +36,7 @@ class BoothTestEnvironment(unittest.TestCase, BoothAssertions):
         # pid for those and only those, which is exactly what we want
         # here.
         subprocess.call("(netstat -tlnp || ss -tlnp) 2>&1 | " +
-            "perl -lne '(m,LISTEN\s+(\d+)/boothd, || /\"boothd\".*pid=(\d+)/) and kill 15, $1'",
+            "perl -lne '(m,LISTEN\\s+(\\d+)/boothd, || /\"boothd\".*pid=(\\d+)/) and kill 15, $1'",
             shell=True)
 
     def get_tempfile(self, identity):
