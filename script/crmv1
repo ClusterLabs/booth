@@ -1,0 +1,116 @@
+#!/bin/bash
+#
+# This is crmv1, a tool to configure booth as a crmv1 style
+# cluster.
+# It basically manages groups. There is no concept of a group in
+# booth, but we can get by by using the before-acquire-handler.
+# Essentially, the handler is used to run programs (resource
+# agents). Just how the resource agents are configured is another
+# matter.
+#
+
+CONF_DIR=/etc/booth
+
+cnt=0
+
+usage() {
+	cat<<EOF >&2
+
+Usage: $0 {group <groupname> <ra> ...|group delete <groupname>}
+
+Examples:
+
+	crmv1 group bigdb \\
+		IPaddr ip=192.168.1.1 \\
+		ocf:linbit:drbd drbd_resource=bigdisk \\
+		Filesystem device=/dev/bigdisk directory=/bigdisk fstype=xfs \\
+		oracle sid=bigdb
+
+	crmv1 group delete bigdb
+
+EOF
+	exit $1
+}
+fatal() {
+	cat<<EOF >&2
+
+FATAL: $*
+
+EOF
+	exit 1
+}
+
+add_group() {
+	mkdir -p $CONF_DIR/crmv1/$2
+	echo "$@" >> $CONF_DIR/crmv1/conf
+}
+
+del_group() {
+	rm -rf $CONF_DIR/crmv1/$1
+	sed -i "/group $1/d" $CONF_DIR/crmv1/conf
+}
+
+get_ra() {
+	local ra
+	ra=$1
+	set `echo $ra | sed 's/:/ /g'`
+	if [ $# -eq 1 ]; then
+		dir=/usr/lib/ocf/resource.d/heartbeat
+	else
+		# 1:2:3
+		dir=/usr/lib/ocf/resource.d/$1/$2
+		ra=$3
+	fi
+	if [ -f $dir/$ra ]; then
+		echo $dir/$ra
+	else
+		fatal "no resource agent $1, did you install resource-agents?"
+	fi
+}
+
+mk_link() {
+	ln -fs $2 $CONF_DIR/crmv1/$1/`printf '%02d' $3`_`basename $2`
+}
+ln_ra() {
+	ra_f=`get_ra $2`
+	mk_link $1 $ra_f $cnt
+	cnt=$((cnt+1))
+}
+
+# this is not really creating a group, we just parse the input to
+# make sure that the group is well defined; the group is then
+# created by boothd on starting; consider this a document on how
+# creating a group should be implemented
+new_group() {
+	group=$2
+	shift 2
+	for p; do
+		save_ra=$p
+		if echo $p | grep -qs '='; then
+			args="$args $p"
+		else
+			if [ "$save_ra" ]; then
+				ln_ra $group $save_ra
+				save_ra=''
+				continue
+			fi
+		fi
+		ln_ra $group $p
+	done
+	add_group group $group $@
+}
+
+if [ $# -lt 3 ]; then
+	usage 1
+fi
+if [ $1 != group ]; then
+	usage 1
+fi
+if [ $2 != delete ]; then
+	if grep -qs "^group $2" $CONF_DIR/crmv1/conf; then
+		fatal "group $2 already exists"
+	fi
+	new_group $@
+else
+	del_group $3
+fi

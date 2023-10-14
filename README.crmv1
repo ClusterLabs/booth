@@ -1,0 +1,49 @@
+CRMv1 cluster
+=============
+    
+Heartbeat is a predecessor to Pacemaker and here we make a
+comeback to that kind of clustering. Why should we do that?
+Firstly, Pacemaker became a behemoth, something that can brew
+your coffee, but also something that is rather unwieldy and
+difficult to manage. Secondly, booth is a very reliable
+distributed engine and in our testing it was used also in a
+typical LAN and passed all the tests with flying colours. So,
+this is something for people who don't need all the bells and
+whistles of Pacemaker, but still want to have HA.
+
+STONITH is missing, but the cluster must have at least three
+members. Hence, the booth arbitrator serves as a fencing
+replacement. This is as it should be: a two node cluster is
+indeed very difficult to run. The booth arbitrator can be a
+smallish instance running wherever in your network. As with
+fencing, it doesn't even have to be particularly reliable, it
+just have to be there when we need it.
+
+Setup
+-----
+
+Just like with heartbeat, CRMv1 in booth is very simple to setup.
+There is a helper program called `crmv1` which is going to handle
+all the details. In the simplest setup, which is anyway the most
+common, there is just one group. The resources are run in order,
+there is no parallelism.
+
+Here the usage with one realistic example:
+
+	Usage: crmv1 {group <groupname> <rsc> ...|group delete <groupname>}
+
+	Examples:
+
+		crmv1 group bigdb \
+			IPaddr ip=192.168.1.1 \
+			ocf:linbit:drbd drbd_resource=bigdisk \
+			Filesystem device=/dev/bigdisk directory=/bigdisk fstype=xfs \
+			oracle sid=bigdb
+
+		crmv1 group delete bigdb
+
+There is no monitoring of resources, but it is easy to run an
+external monitor of the topmost resource, i.e. the service which
+is actually used by the users. If that monitor fails, then it
+makes sense to move the group to the other node.
+

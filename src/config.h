@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include "booth.h"
 #include "timer.h"
 #include "raft.h"
@@ -321,6 +322,7 @@ struct booth_config {
     int ticket_count;
     int ticket_allocated;
     struct ticket_config *ticket;
+    int crmv1;
 };
 
 extern struct booth_config *booth_conf;
