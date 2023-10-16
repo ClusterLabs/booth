@@ -42,6 +42,7 @@ EXTRA_DIST		= autogen.sh conf/booth.conf.example \
 			  test/utils.py \
 			  unit-tests \
 			  contrib \
+			  icons \
 			  $(SPEC).in booth-rpmlintrc \
 			  .version build-aux/git-version-gen build-aux/PKG_CHECK_VAR.m4 \
 			  build-aux/gitlog-to-changelog build-aux/release.mk
