@@ -54,6 +54,9 @@ MAINTAINERCLEANFILES	= Makefile.in aclocal.m4 configure depcomp \
 			  autoheader automake autoconf test_lense.sh \
 			  compile
 
+# Don't try to install files outside build directory for "make distcheck".
+AM_DISTCHECK_CONFIGURE_FLAGS = --with-ocfdir="$$dc_install_base/lib/ocf"
+
 dist_doc_DATA		= AUTHORS README COPYING README.upgrade-from-v0.1 README-testing
 
 boothconfdir		= ${BOOTHSYSCONFDIR}
