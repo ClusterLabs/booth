@@ -235,10 +235,20 @@ AC_ARG_WITH([ocfdir],
 AC_SUBST([ocfdir])
 
 AC_ARG_WITH([hmac_library],
-	[  --with-hmac-library=LIBRARY     : Select HMAC library to use (default: autodetect one of gcrypt or mhash).])
+	[  --with-hmac-library=LIBRARY     : Select HMAC library to use (default: autodetect one of gnutls, gcrypt or mhash).])
 
-# libgcrypt or mhash for hmac
+# GnuTLS, libgcrypt or mhash for hmac
 hmac_library_installed="no"
+if test "x$with_hmac_library" == "x" && test "x$hmac_library_installed" == "xno" || \
+    test "x$with_hmac_library" == "xgnutls"; then
+	libgnutls_installed="yes"
+	PKG_CHECK_MODULES([LIBGNUTLS], [gnutls >= 2.10.0], [
+	    AC_DEFINE([HAVE_LIBGNUTLS], [1], [Have gnutls library])
+	    libgnutls_installed="yes"
+	    ], [libgnutls_installed="no"])
+	hmac_library_installed="${libgnutls_installed}"
+fi
+
 if test "x$with_hmac_library" == "x" && test "x$hmac_library_installed" == "xno" || \
     test "x$with_hmac_library" == "xgcrypt"; then
 	libgcrypt_installed="yes"
@@ -457,10 +467,10 @@ fi
 
 # final build of *FLAGS
 CFLAGS="$ENV_CFLAGS $OPT_CFLAGS $GDB_FLAGS $OS_CFLAGS \
-	$COVERAGE_CFLAGS $EXTRA_WARNINGS $WERROR_CFLAGS $NSS_CFLAGS"
+	$COVERAGE_CFLAGS $EXTRA_WARNINGS $WERROR_CFLAGS $LIBGNUTLS_CFLAGS"
 CPPFLAGS="$ENV_CPPFLAGS $ANSI_CPPFLAGS $OS_CPPFLAGS $GLIB_CFLAGS $RESMON_CFLAGS $XML_CFLAGS"
 LDFLAGS="$ENV_LDFLAGS $COVERAGE_LDFLAGS $OS_LDFLAGS"
-LIBS="$LIBS $XML_LIBS"
+LIBS="$LIBS $XML_LIBS $LIBGNUTLS_LIBS"
 
 # substitute what we need:
 AC_SUBST([INITDDIR])

@@ -977,7 +977,7 @@ const struct booth_transport booth_transport[TRANSPORT_ENTRIES] = {
 int add_hmac(void *data, int len)
 {
 	int rv = 0;
-#if HAVE_LIBGCRYPT || HAVE_LIBMHASH
+#if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
 	int payload_len;
 	struct hmac *hp;
 
@@ -997,7 +997,7 @@ int add_hmac(void *data, int len)
 	return rv;
 }
 
-#if HAVE_LIBGCRYPT || HAVE_LIBMHASH
+#if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
 
 /* TODO: we need some client identification for logging */
 #define peer_string(p) (p ? site_string(p) : "client")
@@ -1051,7 +1051,7 @@ accept:
 int check_auth(struct booth_site *from, void *buf, int len)
 {
 	int rv = 0;
-#if HAVE_LIBGCRYPT || HAVE_LIBMHASH
+#if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
 	int payload_len;
 	struct hmac *hp;
 

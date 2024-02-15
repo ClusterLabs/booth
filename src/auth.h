@@ -20,6 +20,25 @@
 #include "log.h"
 #include <sys/types.h>
 
+#if HAVE_LIBGNUTLS
+
+#include <gnutls/gnutls.h>
+#include <gnutls/crypto.h>
+
+/*
+ * We need to stay backwards compatible. Both gcrypt and mhash defines
+ * SHA1 algorithm as 2. but GNUTLS_MAC_SHA1 is defined as 3, so hardcode
+ * 2 here and use correct value in auth.c
+ */
+#define BOOTH_COMPAT_MHASH_SHA1 2
+#define BOOTH_HASH BOOTH_COMPAT_MHASH_SHA1
+
+int calc_hmac(const void *data, size_t datalen,
+	int hid, unsigned char *result, char *key, unsigned int keylen);
+int verify_hmac(const void *data, size_t datalen,
+	int hid, unsigned char *hmac, char *key, int keylen);
+#endif
+
 #if HAVE_LIBGCRYPT
 
 #include <gcrypt.h>
