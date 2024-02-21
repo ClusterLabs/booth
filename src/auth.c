@@ -28,6 +28,11 @@ int calc_hmac(const void *data, size_t datalen,
 {
 	static gcry_md_hd_t digest;
 	gcry_error_t err;
+	int hlen;
+
+	hlen = gcry_md_get_algo_dlen(hid);
+	if (!hlen)
+		return -1;
 
 	if (!digest) {
 		err = gcry_md_open(&digest, hid, GCRY_MD_FLAG_HMAC);
@@ -42,7 +47,7 @@ int calc_hmac(const void *data, size_t datalen,
 		}
 	}
 	gcry_md_write(digest, data, datalen);
-	memcpy(result, gcry_md_read(digest, 0), gcry_md_get_algo_dlen(hid));
+	memcpy(result, gcry_md_read(digest, 0), hlen);
 	gcry_md_reset(digest);
 	return 0;
 }
@@ -54,15 +59,20 @@ int verify_hmac(const void *data, size_t datalen,
 {
 	unsigned char *our_hmac;
 	int rc;
+	int hlen;
 
-	our_hmac = malloc(gcry_md_get_algo_dlen(hid));
+	hlen = gcry_md_get_algo_dlen(hid);
+	if (!hlen)
+		return -1;
+
+	our_hmac = malloc(hlen);
 	if (!our_hmac)
 		return -1;
 
 	rc = calc_hmac(data, datalen, hid, our_hmac, key, keylen);
 	if (rc)
 		goto out_free;
-	rc = memcmp(our_hmac, hmac, gcry_md_get_algo_dlen(hid));
+	rc = memcmp(our_hmac, hmac, hlen);
 
 out_free:
 	if (our_hmac)
