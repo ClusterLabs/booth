@@ -142,7 +142,7 @@ static int read_server_reply(
 		return -2;
 	}
 	len = ntohl(header->length);
-	rv = tpt->recv(site, msg+len, len-sizeof(*header));
+	rv = tpt->recv(site, msg+sizeof(*header), len-sizeof(*header));
 	if (rv < 0) {
 		return -1;
 	}
