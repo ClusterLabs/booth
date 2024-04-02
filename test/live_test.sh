@@ -1163,6 +1163,44 @@ applicable_attr_prereq_fail() {
 	[ -n "`get_attr`" ]
 }
 
+## TEST: crmv1_group_start ##
+
+add_crmv1_group() {
+	crmv1 group testgrp rsc1 Dummy rsc2 Dummy fake=test
+}
+
+rm_crmv1_group() {
+	crmv1 group delete testgrp
+}
+
+check_resources() {
+	export OCF_ROOT=/usr/lib/ocf
+	export OCF_RESOURCE_INSTANCE=rsc1
+	. /usr/lib/ocf/lib/heartbeat/ocf-shellfuncs 
+	/usr/lib/ocf/resource.d/heartbeat/Dummy monitor || return 1
+	OCF_RESOURCE_INSTANCE=rsc2
+	export OCF_RESKEY_fake=test
+	/usr/lib/ocf/resource.d/heartbeat/Dummy monitor || return 1
+	return 0
+}
+
+# crmv1 start a group
+setup_crmv1_group_start_ok() {
+	add_crmv1_group
+}
+test_crmv1_group_start_ok() {
+	wait_exp
+	wait_timeout
+}
+check_crmv1_group_start_ok() {
+	check_resources
+}
+recover_crmv1_group_start_ok() {
+	stop_site `get_site 1`
+	stop_site `get_site 2`
+	rm_crmv1_group
+}
+
 #
 # environment modifications
 #
@@ -1251,7 +1289,8 @@ grant_site_lost grant_site_reappear revoke
 simultaneous_start_even slow_start_granted
 restart_granted reload_granted restart_granted_nocib restart_notgranted
 failover split_leader split_follower split_edge
-external_prog_failed attr_prereq_ok attr_prereq_fail"}
+external_prog_failed attr_prereq_ok attr_prereq_fail
+crmv1_group_start"}
 
 : ${MANUAL_TESTS:="grant longgrant grant_noarb grant_elsewhere
 grant_site_lost

@@ -34,7 +34,7 @@ SPEC			= $(PACKAGE_NAME).spec
 TARFILE			= $(PACKAGE_NAME)-$(VERSION).tar.gz
 
 EXTRA_DIST		= autogen.sh conf/booth.conf.example \
-			  script/booth-keygen script/lsb script/ocf script/service-runnable.in \
+			  script/booth-keygen script/lsb script/ocf script/service-runnable.in script/crmv1.in \
 			  script/unit-test.py.in script/wireshark-dissector.lua \
 			  test/arbtests.py test/assertions.py test/booth_path test/boothrunner.py \
 			  test/boothtestenv.py.in test/clientenv.py test/clienttests.py test/live_test.sh \

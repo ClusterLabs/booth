@@ -538,6 +538,178 @@ err_out:
 
 extern int poll_timeout;
 
+void
+get_keyval(char *key, char *val, struct args *a) {
+	char *p;
+
+	strncpy(a->key, key, 16);
+	p = skip_while(val, isspace);
+	*(p-1) = '\0';
+	strncpy(a->val, val, 16);
+}
+
+struct crmv1_group {
+	char name[16];
+	char ra[128];
+	struct args {
+		char *key[16];
+		char *val[16];
+	} args[16];
+};
+
+#define OCF_HB_PATH "/usr/lib/ocf/resource.d/heartbeat/"
+#define OCF_PATH "/usr/lib/ocf/resource.d/"
+
+void ln_ra(char *ra, char *s, int cnt)
+{
+	char *p, *q, *r;
+	int fd;
+	char ra_target_s[128];
+
+	p = s;
+	q = strchr(":", s);
+	if (!q) {
+		strcpy(ra, OCF_HB_PATH);
+		strncpy(ra+strlen(OCF_HB_PATH), s, 128-strlen(OCF_HB_PATH));
+		r = s;
+	} else {
+		/* s -> p ':' q ':' r
+		 * copy to ra
+		 */
+		*q = '\0'; q++;
+		strcpy(ra, OCF_PATH);
+		strncpy(ra+strlen(OCF_PATH), p, 128-strlen(OCF_PATH));
+		*(q-p+1) = '/';
+		strncpy(ra+strlen(OCF_PATH)+1, q, 128-strlen(OCF_PATH)-strlen(q));
+		r = strchr(":", q);
+		*r = '\0'; r++;
+		strncat(ra, r, 128-strlen(OCF_PATH));
+	}
+	if (strlen(p) >= 128) {
+		log_error("RA name too long: %s", s);
+		exit(1);
+	}
+	/* now test if there is a file containing this RA
+	 */
+	if (!(fd = open(ra))) {
+		log_error("RA does not exist: %s", s);
+		exit(1);
+	}
+	close(fd);
+	/* finally, create a soft link
+	 */
+	if (snprintf(ra_target_s, 128, "%02d_%s", cnt, r) >= 128) {
+		log_error("RA name too long: %s", s);
+		exit(1);
+	}
+	if (symlink(BOOTH_DEFAULT_CRMV1_CONF, ra_target_s) != 0) {
+		log_error("failed to symlink %s: %s", ra_target_s,
+				strerror(errno));
+		exit(1);
+	}
+}
+
+/* mimic the shell parsing
+ */
+
+int parse_crmv1_conf(struct ticket_config *current_tk)
+{
+	struct crmv1_group *groups[16], *curr_group;
+	char line[1024], *buf;
+	char error_str_buf[1024];
+	FILE *fp;
+	char *s, *key, *val;
+	const char *error;
+	char *save_ra;
+	int i, grp_i = 0, key_i = 0, in_key, grp_wait;
+	int cnt = 0, args_cnt = 0;
+
+	curr_group = groups[0];
+	fp = fopen(BOOTH_DEFAULT_CRMV1_CONF, "r");
+	if (!fp) {
+		log_error("failed to open %s: %s", BOOTH_DEFAULT_CRMV1_CONF,
+				strerror(errno));
+		return -1;
+	}
+
+	log_debug("reading config file %s", BOOTH_DEFAULT_CRMV1_CONF);
+	/* make one long line */
+	while (fgets(line, sizeof(line), fp)) {
+		s = skip_while(line, isspace);
+		if (is_end_of_line(s) || *s == '#')
+			continue;
+		/* is line continued? */
+		if (*(s+strlen(s)-2) == '\\' && *(s+strlen(s)-1) == '\n') {
+			*(s+strlen(s)-2) = ' ';
+		}
+	}
+	buf = line;
+
+	/* now parse the line */
+	for (s = buf; ; ) {
+		/* a '=' b or ra */
+		s = skip_while(s, isspace);
+		save_ra = s;
+		if ( *s == '=' ) {
+			*s = '\0';
+			s++;
+			get_keyval(save_ra, s, curr_group->args[args_cnt++]);
+		} else {
+			if ( save_ra ) {
+				ln_ra(curr_group->ra, save_ra, cnt);
+				curr_group->args[0] = NULL;
+				save_ra = NULL;
+				cnt++;
+				continue;
+			}
+		}
+		ln_ra(curr_group->ra, s, cnt);
+		cnt++;
+
+		if (strcmp(key, "group") == 0) {
+			grp_wait = 1;
+			continue;
+		}
+
+		(void)snprintf(error_str_buf, sizeof(error_str_buf),
+		    "Unknown keyword \"%s\"", key);
+		error = error_str_buf;
+		goto err;
+
+		curr_group++;
+	}
+	fclose(fp);
+
+	/* Default: make config name match config filename. */
+	if (!booth_conf->name[0]) {
+		cp = strrchr(path, '/');
+		cp = cp ? cp+1 : (char *)path;
+		cp2 = strrchr(cp, '.');
+		if (!cp2)
+			cp2 = cp + strlen(cp);
+		if (cp2-cp >= BOOTH_NAME_LEN) {
+			log_error("token too long");
+			goto out;
+		}
+		strncpy(booth_conf->name, cp, cp2-cp);
+		*(booth_conf->name+(cp2-cp)) = '\0';
+	}
+
+	if (!postproc_ticket(current_tk)) {
+		goto out;
+	}
+
+	return 0;
+
+err:
+	fclose(fp);
+out:
+	log_error("%s in config file line %d",
+			error, lineno);
+	booth_conf->crmv1 = 0;
+	return -1;
+}
+
 int read_config(const char *path, int type)
 {
 	char line[1024];
@@ -784,6 +956,12 @@ no_value:
 			} else if (add_ticket(val, &current_tk, &defaults)) {
 				goto err;
 			}
+			continue;
+		}
+
+		if (strcmp(key, "crmv1") == 0) {
+			if ( !parse_crmv1_conf() )
+				booth_conf->crmv1 = 1;
 			continue;
 		}
 

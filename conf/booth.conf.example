@@ -25,3 +25,7 @@ ticket="ticketA"
 ticket="ticketB"
 	expire = 600
 	weights = 1,2,3
+
+# Use the CRMv1 feature, i.e. make the booth a cluster in its own
+# right (run resource, etc)
+crmv1

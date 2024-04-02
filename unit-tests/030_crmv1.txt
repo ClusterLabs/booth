@@ -1,0 +1,48 @@
+# vim: ft=sh et :
+#
+# Testing crmv1 groups
+
+
+ticket:
+    name                "tick1"
+    state               ST_LEADER
+    current_term        40
+    leader              local
+    # may keep ticket all the time
+    term_duration       3000
+    # but shall start renewal now
+    term_expires        time(0) + 1000
+    req_sent_at          time(0) - 10
+
+
+gdb0:
+    call parse_extprog("test `set|grep ^BOOTH|wc -l` -ge 5", booth_conf->ticket+0)
+
+outgoing0:
+    header.cmd          OP_HEARTBEAT
+
+
+testgrp:
+    call parse_extprog("bin/crmv1")
+    ext_verifier        'bin/crmv1'
+    # cause re-query of the verifier
+    req_sent_at          time(0) - 10
+
+#
+#gdb1:
+#    break ticket_broadcast_proposed_state § commands § bt § c § end
+
+
+outgoing1:
+    header.cmd          OP_HEARTBEAT
+
+
+# now say that we may not have it anymore.
+ticket2:
+    ext_verifier        'test "$BOOTH_TICKET" == "tick2FOO"'
+    # cause re-query of the verifier
+    req_sent_at          time(0) - 10
+
+finally:
+    state        ST_LEADER
+    leader       local

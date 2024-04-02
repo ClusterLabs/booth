@@ -38,6 +38,7 @@
 #define BOOTH_DEFAULT_CONF_EXT ".conf"
 #define BOOTH_DEFAULT_CONF \
 	BOOTH_DEFAULT_CONF_DIR BOOTH_DEFAULT_CONF_NAME BOOTH_DEFAULT_CONF_EXT
+#define BOOTH_DEFAULT_CRMV1_CONF BOOTH_DEFAULT_CONF_DIR "crmv1/conf"
 
 #define DAEMON_NAME		"boothd"
 #define BOOTH_PATH_LEN		PATH_MAX
@@ -378,9 +379,6 @@ extern struct command_line cl;
 	({ typeof (a__) _a = (a__); \
 	 typeof (b__) _b = (b__); \
 	 _a > _b ? _a : _b; })
-
-
-
 
 
 #endif /* _BOOTH_H */

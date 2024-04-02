@@ -65,16 +65,47 @@ closefiles(void)
 }
 
 static void
+wait4proc(struct ticket_config *tk, char *prog) {
+	int rv, status;
+
+	while (waitpid(curr_pid, &status, 0) != curr_pid)
+		;
+	curr_pid = 0;
+	if (!ignore_status) {
+		rv = test_exit_status(tk, prog, status, 1);
+		if (rv)
+			_exit(rv);
+	} else {
+		/*
+		 * To make ignore_rest function signal safe log_info
+		 * must be removed from signal function. Information
+		 * about signal delivery is important so put it here.
+		 */
+		log_info("external programs handler caught TERM, ignoring "
+			"status of external test programs");
+	}
+
+static void
 run_ext_prog(struct ticket_config *tk, char *prog)
 {
-	if (set_booth_env(tk)) {
+	int status, rv;
+
+	switch(curr_pid=fork()) {
+	case -1:
+		log_error("fork: %s", strerror(errno));
 		_exit(1);
+	case 0: /* child */
+		if (set_booth_env(tk)) {
+			_exit(1);
+		}
+		closefiles(); /* don't leak open files */
+		tk_log_debug("running handler %s", prog);
+		execv(prog, tk_test.argv);
+		tk_log_error("%s: execv failed (%s)", prog, strerror(errno));
+		_exit(1);
+	default: /* parent */
+		wait4proc(struct ticket_config *tk, char *prog);
 	}
-	closefiles(); /* don't leak open files */
-	tk_log_debug("running handler %s", prog);
-	execv(prog, tk_test.argv);
-	tk_log_error("%s: execv failed (%s)", prog, strerror(errno));
-	_exit(1);
 }
 
 static int
@@ -214,30 +245,9 @@ process_ext_dir(struct ticket_config *tk)
 		strcpy(prog, tk_test.path);
 		strcat(prog, "/");
 		strcat(prog, dp->d_name);
-		switch(curr_pid=fork()) {
-		case -1:
-			log_error("fork: %s", strerror(errno));
-			_exit(1);
-		case 0: /* child */
-			run_ext_prog(tk, prog);
-			break;  /* run_ext_prog effectively noreturn */
-		default: /* parent */
-			while (waitpid(curr_pid, &status, 0) != curr_pid)
-				;
-			curr_pid = 0;
-			if (!ignore_status) {
-				rv = test_exit_status(tk, prog, status, 1);
-				if (rv)
-					_exit(rv);
-			} else {
-				/*
-				 * To make ignore_rest function signal safe log_info
-				 * must be removed from signal function. Information
-				 * about signal delivery is important so put it here.
-				 */
-				log_info("external programs handler caught TERM, ignoring "
-				    "status of external test programs");
-			}
+		run_ext_prog(tk, prog);
+		if (booth_conf->crmv1) {
+			wait4proc(struct ticket_config *tk, char *prog);
 		}
 	}
 	_exit(0);
@@ -277,6 +287,9 @@ int run_handler(struct ticket_config *tk)
 		tk_test.pid = pid;
 		set_progstate(tk, EXTPROG_RUNNING);
 		rv = RUNCMD_MORE; /* program runs */
+		if (booth_conf->crmv1) {
+			wait4proc(struct ticket_config *tk, char *prog);
+		}
 	}
 
 	return rv;

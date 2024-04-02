@@ -1,0 +1,15 @@
+# The crmv1 configuration file is "/etc/booth/crmv1/conf". You need to
+# prepare the same configuration file on each arbitrator and
+# each node in the cluster sites where the booth daemon can be launched.
+
+# The configuration consists of groups definition with parameters for resources
+# It is recommended to use the crmv1 program to prepare this
+# configuration file.
+# Here is one example:
+
+group bigdb \
+	IPaddr ip=192.168.1.1 \
+	ocf:linbit:drbd drbd_resource=bigdisk \
+	Filesystem device=/dev/bigdisk directory=/bigdisk fstype=xfs \
+	oracle sid=bigdb
+
