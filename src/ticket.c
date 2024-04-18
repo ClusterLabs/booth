@@ -34,7 +34,7 @@
 #endif
 #include "ticket.h"
 #include "config.h"
-#include "pacemaker.h"
+#include "pcmk.h"
 #include "inline-fn.h"
 #include "log.h"
 #include "booth.h"
