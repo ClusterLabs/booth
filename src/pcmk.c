@@ -17,6 +17,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -51,7 +52,7 @@ const char * interpret_rv(int rv)
 }
 
 
-static int pcmk_write_ticket_atomic(struct ticket_config *tk, int grant)
+static int pcmk_write_ticket_atomic(struct ticket_config *tk, bool grant)
 {
 	char cmd[COMMAND_MAX];
 	int rv;
@@ -66,9 +67,7 @@ static int pcmk_write_ticket_atomic(struct ticket_config *tk, int grant)
 			"-S term --attr-value=%" PRIi64 " "
 			"-S booth-cfg-name --attr-value=%s",
 			tk->name,
-			(grant > 0 ? "-g" :
-			 grant < 0 ? "-r" :
-			 ""),
+			grant ? "-g" : "-r",
 			(int32_t)get_node_id(tk->leader),
 			(int64_t)wall_ts(&tk->term_expires),
 			(int64_t)tk->current_term,
@@ -91,14 +90,14 @@ static int pcmk_write_ticket_atomic(struct ticket_config *tk, int grant)
 static int pcmk_grant_ticket(struct ticket_config *tk)
 {
 
-	return pcmk_write_ticket_atomic(tk, +1);
+	return pcmk_write_ticket_atomic(tk, true);
 }
 
 
 static int pcmk_revoke_ticket(struct ticket_config *tk)
 {
 
-	return pcmk_write_ticket_atomic(tk, -1);
+	return pcmk_write_ticket_atomic(tk, false);
 }
 
 
