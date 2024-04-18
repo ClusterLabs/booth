@@ -21,7 +21,7 @@
 #include "attr.h"
 #include "booth.h"
 #include "ticket.h"
-#include "pacemaker.h"
+#include "pcmk.h"
 
 void print_geostore_usage(void)
 {

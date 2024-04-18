@@ -66,7 +66,7 @@
 #include "config.h"
 #include "transport.h"
 #include "inline-fn.h"
-#include "pacemaker.h"
+#include "pcmk.h"
 #include "ticket.h"
 #include "request.h"
 #include "attr.h"

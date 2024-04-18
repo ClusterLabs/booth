@@ -29,7 +29,7 @@
 #include "ticket.h"
 #include "log.h"
 #include "attr.h"
-#include "pacemaker.h"
+#include "pcmk.h"
 #include "inline-fn.h"
 
 

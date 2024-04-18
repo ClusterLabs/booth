@@ -31,7 +31,7 @@
 #include "config.h"
 #include "inline-fn.h"
 #include "log.h"
-#include "pacemaker.h"
+#include "pcmk.h"
 #include "booth.h"
 #include "handler.h"
 
