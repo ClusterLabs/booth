@@ -33,6 +33,10 @@
 #include "pcmk.h"
 #include "inline-fn.h"
 
+#ifdef LIBPACEMAKER
+#include <crm/common/results.h>
+#include <pacemaker.h>
+#endif
 
 #define COMMAND_MAX	2048
 
@@ -101,6 +105,57 @@ static int pcmk_revoke_ticket(struct ticket_config *tk)
 }
 
 
+#ifdef LIBPACEMAKER
+static int pcmk_set_attr(struct ticket_config *tk, const char *attr, const char *val)
+{
+    GHashTable *attrs = NULL;
+    xmlNode *xml = NULL;
+    int rv;
+
+    attrs = g_hash_table_new(g_str_hash, g_str_equal);
+    if (attrs == NULL) {
+        log_error("out of memory");
+        return -1;
+    }
+
+    g_hash_table_insert(attrs, (gpointer) attr, (gpointer) val);
+
+    rv = pcmk_ticket_set_attr(&xml, tk->name, attrs, false);
+    g_hash_table_destroy(attrs);
+    xmlFreeNode(xml);
+
+    if (rv != pcmk_rc_ok) {
+        log_error("pcmk_set_attr: %s", pcmk_rc_str(rv));
+        return -1;
+    }
+
+    return 0;
+}
+
+static int pcmk_del_attr(struct ticket_config *tk, const char *attr)
+{
+    GList *attrs = NULL;
+    xmlNode *xml = NULL;
+    int rv;
+
+    attrs = g_list_append(attrs, (gpointer) attr);
+    if (attrs == NULL) {
+        log_error("out of memory");
+        return -1;
+    }
+
+    rv = pcmk_ticket_remove_attr(&xml, tk->name, attrs, false);
+    g_list_free(attrs);
+    xmlFreeNode(xml);
+
+    if (rv != pcmk_rc_ok) {
+        log_error("pcmk_del_attr: %s", pcmk_rc_str(rv));
+        return -1;
+    }
+
+    return 0;
+}
+#else
 static int _run_crm_ticket(char *cmd)
 {
 	int i, rv;
@@ -148,6 +203,7 @@ static int pcmk_del_attr(struct ticket_config *tk, const char *attr)
 
 	return _run_crm_ticket(cmd);
 }
+#endif
 
 
 typedef int (*attr_f)(struct booth_config *conf, struct ticket_config *tk,
