@@ -500,10 +500,51 @@ static int save_attributes(struct booth_config *conf, struct ticket_config *tk,
 		tk_log_error("crm_ticket xml output empty");
 		return -EINVAL;
 	}
-	if (xmlStrcmp(n->name, (const xmlChar *)"ticket_state")) {
+
+    if (xmlStrcmp(n->name, (const xmlChar *) PCMK_XE_PACEMAKER_RESULT) == 0) {
+        xmlNode *tickets_node = NULL;
+        xmlNode *ticket_node = NULL;
+
+        /* This is XML from a libpacemaker API call.  Move the node pointer to
+         * the ticket element containing the attributes we want to copy.
+         */
+
+        /* Look for a child node named <tickets>. */
+        for (xmlNode *child = n->children; child != NULL; child = child->next) {
+            if (xmlStrcmp(child->name, (const xmlChar *) PCMK_XE_TICKETS) == 0) {
+                tickets_node = child;
+                break;
+            }
+        }
+
+        if (tickets_node == NULL) {
+            tk_log_error("API result does not match expected");
+            return -EINVAL;
+        }
+
+        /* Under that should be a single <ticket> node containing the attributes
+         * we want to copy.  libpacemaker should only return one node because we
+         * asked for a specific ticket, but just to be safe...
+         */
+        for (xmlNode *child = tickets_node->children; child != NULL; child = child->next) {
+            if (xmlStrcmp(child->name, (const xmlChar *) PCMK_XE_TICKET) == 0) {
+                ticket_node = child;
+                break;
+            }
+        }
+
+        if (ticket_node == NULL) {
+            tk_log_error("API result does not match expected");
+            return -EINVAL;
+        }
+
+        n = ticket_node;
+    } else if (xmlStrcmp(n->name, (const xmlChar *) "ticket_state") != 0) {
+        /* This isn't any XML we expect */
 		tk_log_error("crm_ticket xml root element not ticket_state");
 		return -EINVAL;
-	}
+    }
+
 	for (attr = n->properties; attr; attr = attr->next) {
 		v = xmlGetProp(n, attr->name);
 		for (atp = attr_handlers; atp->name; atp++) {
@@ -527,6 +568,26 @@ static int save_attributes(struct booth_config *conf, struct ticket_config *tk,
 	return rv;
 }
 
+
+#ifdef LIBPACEMAKER
+static int pcmk_load_ticket(struct ticket_config *tk)
+{
+    xmlNode *xml = NULL;
+    int rv;
+
+    rv = pcmk_ticket_state(&xml, tk->name);
+
+    if (rv == pcmk_rc_ok) {
+        rv = save_attributes(tk, xml->doc);
+    } else {
+        log_error("pcmk_load_ticket: %s", pcmk_rc_str(rv));
+        rv = -1;
+    }
+
+    xmlFreeNode(xml);
+    return rv;
+}
+#else
 
 #define CHUNK_SIZE 256
 
@@ -634,6 +695,7 @@ static int pcmk_load_ticket(struct booth_config *conf, struct ticket_config *tk)
 	}
 	return rv | pipe_rv;
 }
+#endif
 
 
 struct ticket_handler pcmk_handler = {
