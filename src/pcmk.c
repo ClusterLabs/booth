@@ -356,6 +356,91 @@ struct attr_tab attr_handlers[] = {
 
 /* get_attr is currently not used and has not been tested
  */
+#ifdef LIBPACEMAKER
+static int attr_from_xml(xmlNode *xml, const char *ticket_id, const char *attr,
+                         char **vp)
+{
+    xmlXPathObject *xpath_obj = NULL;
+    xmlXPathContextPtr xpath_ctx = NULL;
+    xmlNode *match = NULL;
+    xmlAttr *attr_xml = NULL;
+    char *expr = NULL;
+    int rv = 0;
+
+    rv = asprintf(&expr, "//" PCMK_XE_PACEMAKER_RESULT "/" PCMK_XE_TICKETS "/"
+                         PCMK_XE_TICKET "[@" PCMK_XA_ID "=\"%s\"]/" PCMK_XE_ATTRIBUTE
+                         "[@" PCMK_XA_NAME "=\"%s\"]", ticket_id, attr);
+    if (rv != 0) {
+        log_error("attr_from_xml: out of memory");
+        goto done;
+    }
+
+    xpath_ctx = xmlXPathNewContext(xml->doc);
+    if (xpath_ctx == NULL) {
+        log_error("attr_from_xml: could not create xpath context");
+        rv = -1;
+        goto done;
+    }
+
+    xpath_obj = xmlXPathEvalExpression((const xmlChar *) expr, xpath_ctx);
+    if (xpath_obj == NULL || xpath_obj->nodesetval == NULL || xpath_obj->nodesetval->nodeNr) {
+        log_error("attr_from_xml: could not evaluate xpath expression");
+        rv = -1;
+        goto done;
+    }
+
+    match = xpath_obj->nodesetval->nodeTab[0];
+    if (match->type != XML_ELEMENT_NODE) {
+        log_error("attr_from_xml: xpath result is not an XML_ELEMENT_NODE");
+        rv = -1;
+        goto done;
+    }
+
+    attr_xml = xmlHasProp(match, (const xmlChar *) attr);
+    if (attr_xml != NULL) {
+        *vp = g_strdup((const char *) attr_xml->children->content);
+    }
+
+done:
+    if (expr != NULL) {
+        free(expr);
+    }
+
+    if (xpath_obj != NULL) {
+        xmlXPathFreeObject(xpath_obj);
+    }
+
+    if (xpath_ctx != NULL) {
+        xmlXPathFreeContext(xpath_ctx);
+    }
+
+    if (attr_xml != NULL) {
+        xmlFreeProp(attr_xml);
+    }
+
+    return rv;
+}
+
+
+static int pcmk_get_attr(struct ticket_config *tk, const char *attr, const char **vp)
+{
+    xmlNode *xml = NULL;
+    int rv;
+
+    rv = pcmk_ticket_get_attr(&xml, tk->name, attr, NULL);
+
+    if (rv != pcmk_rc_ok) {
+        log_error("pcmk_get_attr: %s", pcmk_rc_str(rv));
+        xmlFreeNode(xml);
+        return -1;
+    }
+
+    rv = attr_from_xml(xml, tk->name, attr, (char **) vp);
+
+    xmlFreeNode(xml);
+    return rv;
+}
+#else
 static int pcmk_get_attr(struct ticket_config *tk, const char *attr, const char **vp)
 {
 	char cmd[COMMAND_MAX];
@@ -399,6 +484,7 @@ out:
 	}
 	return rv | pipe_rv;
 }
+#endif
 
 static int save_attributes(struct booth_config *conf, struct ticket_config *tk,
 			   xmlDocPtr doc)
