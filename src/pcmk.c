@@ -530,13 +530,12 @@ static int save_attributes(struct booth_config *conf, struct ticket_config *tk,
 
 #define CHUNK_SIZE 256
 
-static int parse_ticket_state(struct booth_config *conf, struct ticket_config *tk,
-			      FILE *p)
+static int read_ticket_state(struct booth_config *conf, struct ticket_config *tk,
+			     xmlDocPtr *doc, FILE *p)
 {
 	int rv = 0;
 	GString *input = NULL;
 	char line[CHUNK_SIZE];
-	xmlDocPtr doc = NULL;
 	int opts = XML_PARSE_COMPACT | XML_PARSE_NONET;
 
 	/* skip first two lines of output */
@@ -559,8 +558,8 @@ static int parse_ticket_state(struct booth_config *conf, struct ticket_config *t
 		}
 	}
 
-	doc = xmlReadDoc((const xmlChar *) input->str, NULL, NULL, opts);
-	if (doc == NULL) {
+	*doc = xmlReadDoc((const xmlChar *) input->str, NULL, NULL, opts);
+	if (*doc == NULL) {
 		const xmlError *errptr = xmlGetLastError();
 		if (errptr) {
 			tk_log_error("crm_ticket xml parse failed (domain=%d, level=%d, code=%d): %s",
@@ -572,11 +571,8 @@ static int parse_ticket_state(struct booth_config *conf, struct ticket_config *t
 		rv = -EINVAL;
 		goto out;
 	}
-	rv = save_attributes(conf, tk, doc);
 
 out:
-	if (doc)
-		xmlFreeDoc(doc);
 	if (input)
 		g_string_free(input, TRUE);
 	return rv;
@@ -584,6 +580,7 @@ out:
 
 static int pcmk_load_ticket(struct booth_config *conf, struct ticket_config *tk)
 {
+	xmlDocPtr doc;
 	char cmd[COMMAND_MAX];
 	int rv = 0, pipe_rv;
 	int res;
@@ -606,7 +603,11 @@ static int pcmk_load_ticket(struct booth_config *conf, struct ticket_config *tk)
 		return (pipe_rv != 0 ? pipe_rv : EINVAL);
 	}
 
-	rv = parse_ticket_state(conf, tk, p);
+	rv = read_ticket_state(conf, tk, &doc, p);
+	if (rv == 0) {
+		rv = save_attributes(conf, tk, doc);
+		xmlFreeDoc(doc);
+	}
 
 	if (!tk->leader) {
 		/* Hmm, no site found for the ticket we have in the
