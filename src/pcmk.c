@@ -17,6 +17,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include "b_config.h"
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,6 +58,72 @@ const char * interpret_rv(int rv)
 }
 
 
+#ifdef LIBPACEMAKER
+static int pcmk_write_ticket_atomic(struct ticket_config *tk, bool grant)
+{
+    char *owner_s = NULL;
+    char *expires_s = NULL;
+    char *term_s = NULL;
+    char *grant_s = NULL;
+    char *booth_cfg_name = NULL;
+    GHashTable *attrs = NULL;
+    xmlNode *xml = NULL;
+    int rv;
+
+    attrs = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, free);
+    if (attrs == NULL) {
+        log_error("out of memory");
+        return -1;
+    }
+
+    if (grant) {
+        grant_s = strdup("true");
+    } else {
+        grant_s = strdup("false");
+    }
+
+    if (grant_s == NULL) {
+        log_error("out of memory");
+        return -1;
+    }
+
+    booth_cfg_name = strdup(booth_conf->name);
+
+    if (booth_cfg_name == NULL) {
+        log_error("out of memory");
+        free(grant_s);
+        return -1;
+    }
+
+    if (asprintf(&owner_s, "%" PRIi32, get_node_id(tk->leader)) == -1 ||
+        asprintf(&expires_s, "%" PRIi64, wall_ts(&tk->term_expires)) == -1 ||
+        asprintf(&term_s, "%" PRIi64, (int64_t) tk->current_term) == -1) {
+        log_error("out of memory");
+        free(owner_s);
+        free(expires_s);
+        free(term_s);
+        free(grant_s);
+        return -1;
+    }
+
+    g_hash_table_insert(attrs, (gpointer) "owner", owner_s);
+    g_hash_table_insert(attrs, (gpointer) "expires", expires_s);
+    g_hash_table_insert(attrs, (gpointer) "term", term_s);
+    g_hash_table_insert(attrs, (gpointer) "granted", grant_s);
+    g_hash_table_insert(attrs, (gpointer) "booth-cfg-name", booth_conf);
+
+    rv = pcmk_ticket_set_attr(&xml, tk->name, attrs, true);
+    g_hash_table_remove_all(attrs);
+    xmlFreeNode(xml);
+
+    if (rv != pcmk_rc_ok) {
+        log_error("pcmk_write_ticket_atomic: %s", pcmk_rc_str(rv));
+        return -1;
+    }
+
+    return 0;
+}
+#else
 static int pcmk_write_ticket_atomic(struct ticket_config *tk, bool grant)
 {
 	char cmd[COMMAND_MAX];
@@ -89,6 +157,7 @@ static int pcmk_write_ticket_atomic(struct ticket_config *tk, bool grant)
 
 	return rv;
 }
+#endif
 
 
 static int pcmk_grant_ticket(struct ticket_config *tk)
