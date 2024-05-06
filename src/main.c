@@ -61,6 +61,9 @@
 #include <sys/prctl.h>
 #include <clplumbing/coredumps.h>
 #endif
+#ifdef LIBPACEMAKER
+#include <crm/common/xml.h>
+#endif
 #include "log.h"
 #include "booth.h"
 #include "config.h"
@@ -1625,6 +1628,10 @@ int main(int argc, char *argv[], char *envp[])
 	const char *cp;
 #ifdef LOGGING_LIBQB
 	enum qb_log_target_slot i;
+#endif
+
+#ifdef LIBPACEMAKER
+	crm_xml_init();
 #endif
 
 	init_set_proc_title(argc, argv, envp);
