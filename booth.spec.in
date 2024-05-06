@@ -64,6 +64,7 @@ Source1:        %name-rpmlintrc
 BuildRequires:  @asciidoc@
 BuildRequires:  autoconf
 BuildRequires:  automake
+BuildRequires:  gcc
 BuildRequires:  pkgconfig
 %if 0%{?suse_version}
 BuildRequires:  glib2-devel
