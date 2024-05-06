@@ -88,6 +88,9 @@ TESTS			= test/runtests.py
 
 SUBDIRS			= src docs conf
 
+MOCK_DIR 		= $(abs_builddir)/mock
+MOCK_OPTIONS 		?= --resultdir="$(MOCK_DIR)" --no-cleanup-after
+
 coverity:
 	cov-build --dir=cov make
 	cov-analyze --dir cov --concurrency --wait-for-license
@@ -121,7 +124,7 @@ lint:
 
 clean-local:
 	rm -rf test/*.pyc test/__pycache__ test/runtests.py test/boothtestenv.py cov* $(SPEC)
-	-rm -rf $(TARFILE)
+	-rm -rf booth-*.rpm $(TARFILE)
 
 dist-clean-local:
 	rm -f autoconf automake autoheader
@@ -239,6 +242,14 @@ srpm: clean
 rpm: clean
 	$(MAKE) $(SPEC) $(TARFILE)
 	rpmbuild $(RPMBUILDOPTS) -ba $(SPEC)
+
+mock-%: clean srpm
+	mock $(MOCK_OPTIONS) --root=$* --no-cleanup-after --rebuild     \
+		"$(abs_top_builddir)"/*.src.rpm
+
+.PHONY: mock-clean
+mock-clean:
+	-rm -rf "$(MOCK_DIR)"
 
 gen_start_date = 2000-01-01
 .PHONY: gen-ChangeLog
