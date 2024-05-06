@@ -121,6 +121,7 @@ lint:
 
 clean-local:
 	rm -rf test/*.pyc test/__pycache__ test/runtests.py test/boothtestenv.py cov* $(SPEC)
+	-rm -rf $(TARFILE)
 
 dist-clean-local:
 	rm -f autoconf automake autoheader
