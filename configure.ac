@@ -73,19 +73,6 @@ AM_CONDITIONAL(IS_ASCIIDOC, test x"${ASCIIDOC}" != x"")
 AM_CONDITIONAL(IS_A2X, test x"${A2X}" != x"")
 AM_CONDITIONAL(BUILD_ASCIIDOC, test x"${A2X}" != x"" || test x"${ASCIIDOCTOR}" != x"")
 
-# libgcrypt or mhash for hmac
-libgcrypt_installed="yes"
-AC_CHECK_HEADERS(gcrypt.h, , [libgcrypt_installed="no"],)
-AC_CHECK_LIB(gcrypt, gcry_md_open, , [libgcrypt_installed="no"])
-AM_CONDITIONAL(BUILD_AUTH_C, test "x${libgcrypt_installed}" = "xyes")
-
-if test "x$libgcrypt_installed" = "xno"; then
-	mhash_installed="yes"
-	AC_CHECK_HEADERS(mhash.h, , [mhash_installed="no"],)
-	AC_CHECK_LIB(mhash, mhash_init, , [mhash_installed="no"])
-	AM_CONDITIONAL(BUILD_AUTH_C, test "x${mhash_installed}" = "xyes")
-fi
-
 AC_CHECK_LIB([xml2], xmlReadDoc)
 PKG_CHECK_MODULES(XML, [libxml-2.0])
 PKG_CHECK_MODULES(GLIB, [glib-2.0])
@@ -112,7 +99,6 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h stdint.h \
 		  sys/time.h syslog.h unistd.h sys/types.h getopt.h malloc.h \
 		  sys/sockio.h utmpx.h])
 AC_CHECK_HEADERS(heartbeat/glue_config.h)
-AC_CHECK_HEADERS(mhash.h)
 AC_CHECK_HEADER([zlib.h],
 		[AC_SUBST(ZLIB_LIBS, ["-lz"])],
 		[AC_MSG_ERROR([zlib development files required])])
@@ -247,6 +233,43 @@ AC_ARG_WITH([ocfdir],
 	[ ocfdir="$OCFROOT" ])
 
 AC_SUBST([ocfdir])
+
+AC_ARG_WITH([hmac_library],
+	[  --with-hmac-library=LIBRARY     : Select HMAC library to use (default: autodetect one of gnutls, gcrypt or mhash).])
+
+# GnuTLS, libgcrypt or mhash for hmac
+hmac_library_installed="no"
+if test "x$with_hmac_library" == "x" && test "x$hmac_library_installed" == "xno" || \
+    test "x$with_hmac_library" == "xgnutls"; then
+	libgnutls_installed="yes"
+	PKG_CHECK_MODULES([LIBGNUTLS], [gnutls >= 2.10.0], [
+	    AC_DEFINE([HAVE_LIBGNUTLS], [1], [Have gnutls library])
+	    libgnutls_installed="yes"
+	    ], [libgnutls_installed="no"])
+	hmac_library_installed="${libgnutls_installed}"
+fi
+
+if test "x$with_hmac_library" == "x" && test "x$hmac_library_installed" == "xno" || \
+    test "x$with_hmac_library" == "xgcrypt"; then
+	libgcrypt_installed="yes"
+	AC_CHECK_HEADERS(gcrypt.h, , [libgcrypt_installed="no"],)
+	AC_CHECK_LIB(gcrypt, gcry_md_open, , [libgcrypt_installed="no"])
+	hmac_library_installed="${libgcrypt_installed}"
+fi
+
+if test "x$with_hmac_library" == "x" && test "x$hmac_library_installed" == "xno" || \
+    test "x$with_hmac_library" == "xmhash"; then
+	mhash_installed="yes"
+	AC_CHECK_HEADERS(mhash.h, , [mhash_installed="no"],)
+	AC_CHECK_LIB(mhash, mhash_init, , [mhash_installed="no"])
+	hmac_library_installed="${mhash_installed}"
+fi
+
+if test "x$with_hmac_library" != "x" && test "x$hmac_library_installed" == "xno";then
+	AC_MSG_ERROR([required HMAC library not detected])
+fi
+
+AM_CONDITIONAL(BUILD_AUTH_C, test "x${hmac_library_installed}" = "xyes")
 
 # figure out logging provider
 logging_provider=""
@@ -444,10 +467,10 @@ fi
 
 # final build of *FLAGS
 CFLAGS="$ENV_CFLAGS $OPT_CFLAGS $GDB_FLAGS $OS_CFLAGS \
-	$COVERAGE_CFLAGS $EXTRA_WARNINGS $WERROR_CFLAGS $NSS_CFLAGS"
+	$COVERAGE_CFLAGS $EXTRA_WARNINGS $WERROR_CFLAGS $LIBGNUTLS_CFLAGS"
 CPPFLAGS="$ENV_CPPFLAGS $ANSI_CPPFLAGS $OS_CPPFLAGS $GLIB_CFLAGS $RESMON_CFLAGS $XML_CFLAGS"
 LDFLAGS="$ENV_LDFLAGS $COVERAGE_LDFLAGS $OS_LDFLAGS"
-LIBS="$LIBS $XML_LIBS"
+LIBS="$LIBS $XML_LIBS $LIBGNUTLS_LIBS"
 
 # substitute what we need:
 AC_SUBST([INITDDIR])

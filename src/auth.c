@@ -18,6 +18,84 @@
 
 #include "auth.h"
 
+#if HAVE_LIBGNUTLS
+/* calculate the HMAC of the message in data and store it in result
+ * it is up to the caller to make sure that there's enough space
+ * at result for the MAC
+ */
+int calc_hmac(const void *data, size_t datalen,
+	int hid, unsigned char *result, char *key, unsigned int keylen)
+{
+	int rc;
+
+	/*
+	 * Only SHA1 is supported so we can hardcode GNUTLS_MAC_SHA1
+	 */
+	if (hid != BOOTH_COMPAT_MHASH_SHA1) {
+		log_error("calc_hmac unsupported HMAC algorithm %u", hid);
+		return -1;
+	}
+
+	/*
+	 * This shouldn't happen but gnutls_hmac_fast segfault if key or
+	 * data are NULL so it is better to check beforehand.
+	 */
+	if (data == NULL || key == NULL) {
+		log_error("calc_hmac data or key is NULL");
+		return -1;
+	}
+
+	rc = gnutls_hmac_fast(GNUTLS_MAC_SHA1, key, keylen, data, datalen, result);
+	if (rc) {
+		log_error("gnutls_hmac_fast: %s", gnutls_strerror(rc));
+		return -1;
+	}
+
+	return rc;
+}
+
+/* test HMAC
+ */
+int verify_hmac(const void *data, size_t datalen,
+	int hid, unsigned char *hmac, char *key, int keylen)
+{
+	unsigned char *our_hmac;
+	int rc;
+	unsigned int hlen;
+
+	/*
+	 * Only SHA1 is supported so we can hardcode GNUTLS_MAC_SHA1
+	 */
+	if (hid != BOOTH_COMPAT_MHASH_SHA1) {
+		log_error("verify_hmac unsupported HMAC algorithm %u", hid);
+		return -1;
+	}
+
+	if (data == NULL || key == NULL) {
+		log_error("verify_hmac data or key is NULL");
+		return -1;
+	}
+
+	hlen = gnutls_hmac_get_len(GNUTLS_MAC_SHA1);
+	if (!hlen)
+		return -1;
+
+	our_hmac = calloc(hlen, 1);
+	if (!our_hmac)
+		return -1;
+
+	rc = calc_hmac(data, datalen, hid, our_hmac, key, keylen);
+	if (rc)
+		goto out_free;
+	rc = memcmp(our_hmac, hmac, hlen);
+
+out_free:
+	if (our_hmac)
+		free(our_hmac);
+	return rc;
+}
+#endif
+
 #if HAVE_LIBGCRYPT
 /* calculate the HMAC of the message in data and store it in result
  * it is up to the caller to make sure that there's enough space

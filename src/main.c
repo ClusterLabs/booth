@@ -46,6 +46,9 @@
 
 #include <crm/services.h>
 
+#if HAVE_LIBGNUTLS
+#include <gnutls/gnutls.h>
+#endif
 #if HAVE_LIBGCRYPT
 #include <gcrypt.h>
 #endif
@@ -376,6 +379,13 @@ static int setup_config(int type)
 		}
 		gcry_control(GCRYCTL_DISABLE_SECMEM, 0);
 		gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
+#endif
+#if HAVE_LIBGNUTLS
+		if (gnutls_global_init() != 0) {
+			log_error("Cannot initialize GnuTLS");
+			rv = -EINVAL;
+			goto out;
+		};
 #endif
 	}
 
@@ -1671,6 +1681,9 @@ int main(int argc, char *argv[], char *envp[])
 	}
 
 out:
+#if HAVE_LIBGNUTLS
+	gnutls_global_deinit();
+#endif
 #ifdef LOGGING_LIBQB
 	qb_log_fini();
 #endif

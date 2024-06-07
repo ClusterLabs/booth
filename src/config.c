@@ -720,7 +720,7 @@ no_value:
 			continue;
 		}
 
-#if HAVE_LIBGCRYPT || HAVE_LIBMHASH
+#if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
 		if (strcmp(key, "authfile") == 0) {
 			safe_copy(booth_conf->authfile,
 					val, BOOTH_PATH_LEN,
