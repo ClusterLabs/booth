@@ -5,7 +5,7 @@
 AC_PREREQ([2.69])
 
 AC_INIT([booth],
-    [m4_esyscmd([build-aux/git-version-gen --fallback 1.1 .tarball-version .gitarchivever])],
+    [m4_esyscmd([build-aux/git-version-gen --fallback 1.2 .tarball-version .gitarchivever])],
     [users@clusterlabs.org])
 
 AC_USE_SYSTEM_EXTENSIONS
