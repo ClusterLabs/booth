@@ -53,6 +53,3 @@ endif
 if COREDUMP_NURSING
 boothd_LDADD		+= -lplumb
 endif
-
-lint:
-	-splint $(INCLUDES) $(LINT_FLAGS) $(CFLAGS) *.c

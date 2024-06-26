@@ -180,9 +180,6 @@ cc_supports_flag() {
 ## local defines
 PACKAGE_FEATURES=""
 
-LINT_FLAGS="-weak -unrecog +posixlib +ignoresigns -fcnuse \
-	-badflag -D__gnuc_va_list=va_list -D__attribute\(x\)="
-
 # local options
 
 AC_ARG_ENABLE([fatal-warnings],
@@ -474,8 +471,6 @@ LIBS="$LIBS $XML_LIBS $LIBGNUTLS_LIBS"
 
 # substitute what we need:
 AC_SUBST([INITDDIR])
-
-AC_SUBST([LINT_FLAGS])
 
 BOOTH_LIB_DIR=${localstatedir}/lib/booth
 BOOTH_CORE_DIR=${localstatedir}/lib/booth/cores
