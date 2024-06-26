@@ -20,8 +20,6 @@ AC_CANONICAL_HOST
 
 AC_LANG([C])
 
-AC_SUBST(WITH_LIST, [""])
-
 dnl Fix default variables - "prefix" variable if not specified
 if test "$prefix" = "NONE"; then
 	prefix="/usr"
@@ -436,16 +434,6 @@ else
 	COVERAGE_LDFLAGS=""
 fi
 
-
-if test "x${enable_ansi}" = xyes && \
-		cc_supports_flag -std=iso9899:199409 ; then
-	AC_MSG_NOTICE([Enabling ANSI Compatibility])
-	ANSI_CPPFLAGS="-ansi -D_GNU_SOURCE -DANSI_ONLY"
-	PACKAGE_FEATURES="$PACKAGE_FEATURES ansi"
-else
-	ANSI_CPPFLAGS=""
-fi
-
 if test "x${enable_fatal_warnings}" = xyes && \
 		cc_supports_flag -Werror ; then
 	AC_MSG_NOTICE([Enabling Fatal Warnings (-Werror)])
@@ -465,7 +453,7 @@ fi
 # final build of *FLAGS
 CFLAGS="$ENV_CFLAGS $OPT_CFLAGS $GDB_FLAGS $OS_CFLAGS \
 	$COVERAGE_CFLAGS $EXTRA_WARNINGS $WERROR_CFLAGS $LIBGNUTLS_CFLAGS"
-CPPFLAGS="$ENV_CPPFLAGS $ANSI_CPPFLAGS $OS_CPPFLAGS $GLIB_CFLAGS $RESMON_CFLAGS $XML_CFLAGS"
+CPPFLAGS="$ENV_CPPFLAGS $OS_CPPFLAGS $GLIB_CFLAGS $RESMON_CFLAGS $XML_CFLAGS"
 LDFLAGS="$ENV_LDFLAGS $COVERAGE_LDFLAGS $OS_LDFLAGS"
 LIBS="$LIBS $XML_LIBS $LIBGNUTLS_LIBS"
 
@@ -521,7 +509,6 @@ AC_MSG_RESULT([  Extra compiler warnings  = ${EXTRA_WARNING}])
 AC_MSG_RESULT([  Env. defined CFLAG       = ${ENV_CFLAGS}])
 AC_MSG_RESULT([  Env. defined CPPFLAGS    = ${ENV_CPPFLAGS}])
 AC_MSG_RESULT([  Env. defined LDFLAGS     = ${ENV_LDFLAGS}])
-AC_MSG_RESULT([  ANSI defined CPPFLAGS    = ${ANSI_CPPFLAGS}])
 AC_MSG_RESULT([  Coverage     CFLAGS      = ${COVERAGE_CFLAGS}])
 AC_MSG_RESULT([  Coverage     LDFLAGS     = ${COVERAGE_LDFLAGS}])
 AC_MSG_RESULT([  Fatal War.   CFLAGS      = ${WERROR_CFLAGS}])
