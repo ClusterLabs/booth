@@ -65,7 +65,7 @@ void print_geostore_usage(void)
 int test_attr_reply(cmd_result_t reply_code, cmd_request_t cmd)
 {
 	int rv = 0;
-	const char *op_str = "";
+	const char *op_str = NULL;
 
 	switch (cmd) {
 	case ATTR_SET:	op_str = "set";		break;

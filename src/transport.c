@@ -231,9 +231,13 @@ int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed)
 				if (tb[IFA_LOCAL]) {
 					memcpy(ipaddr, RTA_DATA(tb[IFA_LOCAL]),
 							BOOTH_IPADDR_LEN);
-				} else {
+				} else if (tb[IFA_ADDRESS]) {
 					memcpy(ipaddr, RTA_DATA(tb[IFA_ADDRESS]),
 							BOOTH_IPADDR_LEN);
+				} else {
+					log_error("failed to copy netlink addr");
+					close(fd);
+					return 0;
 				}
 
 				/* Try to find the exact address or the address with subnet matching.
@@ -386,6 +390,8 @@ int read_client(struct client *req_cl)
 			log_error("out of memory for client messages");
 			return -1;
 		}
+
+		memset(msg, 0, MAX_MSG_LEN);
 		req_cl->msg = (void *)msg;
 	} else {
 		msg = (char *)req_cl->msg;
@@ -615,8 +621,7 @@ static int connect_nonb(int sockfd, const struct sockaddr *saptr,
 	tval.tv_sec = sec;
 	tval.tv_usec = 0;
 
-	if ((n = select(sockfd + 1, &rset, &wset, NULL,
-	    sec ? &tval : NULL)) == 0) {
+	if (select(sockfd + 1, &rset, &wset, NULL, sec ? &tval : NULL) == 0) {
 		/* leave outside function to close */
 		/* timeout */
 		/* close(sockfd); */	

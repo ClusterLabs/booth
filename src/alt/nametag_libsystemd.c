@@ -73,6 +73,10 @@ void sd_notify_wrapper(const char *fmt, ...)
 	rv = vsnprintf(buffer, sizeof(buffer), suffix, ap);
 	va_end(ap);
 
+	if (rv < 0) {
+		log_warn("%s:%d: vsnprintf fail", __FILE__, __LINE__);
+	}
+
 	rv = sd_notifyf(0, "READY=1\n"
 			"STATUS=Running: %s",
 			buffer);

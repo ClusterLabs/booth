@@ -584,7 +584,7 @@ fail:
 static int test_reply(cmd_result_t reply_code, cmd_request_t cmd)
 {
 	int rv = 0;
-	const char *op_str = "";
+	const char *op_str = NULL;
 
 	if (cmd == CMD_GRANT)
 		op_str = "grant";
@@ -743,7 +743,6 @@ static int query_get_string_answer(cmd_request_t cmd)
 	*(data + data_len) = '\0';
 	(void)fputs(data, stdout);
 	fflush(stdout);
-	rv = 0;
 
 out_test_reply:
 	rv = test_reply_f(ntohl(reply.header.result), cmd);
