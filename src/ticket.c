@@ -65,7 +65,7 @@ int find_ticket_by_name(const char *ticket, struct ticket_config **found)
 	if (found)
 		*found = NULL;
 
-	FOREACH_TICKET(i, tk) {
+	_FOREACH_TICKET(i, tk) {
 		if (!strncmp(tk->name, ticket, sizeof(tk->name))) {
 			if (found)
 				*found = tk;
@@ -390,7 +390,7 @@ int list_ticket(char **pdata, unsigned int *len)
 
 	alloc = booth_conf->ticket_count * (BOOTH_NAME_LEN * 2 + 128 + 16);
 
-	FOREACH_TICKET(i, tk) {
+	_FOREACH_TICKET(i, tk) {
 		multiple_grant_warning_length = number_sites_marked_as_granted(tk);
 
 		if (multiple_grant_warning_length > 1) {
@@ -404,7 +404,7 @@ int list_ticket(char **pdata, unsigned int *len)
 		return -ENOMEM;
 
 	cp = data;
-	FOREACH_TICKET(i, tk) {
+	_FOREACH_TICKET(i, tk) {
 		if ((!is_manual(tk)) && is_time_set(&tk->term_expires)) {
 			/* Manual tickets doesn't have term_expires defined */
 			ts = wall_ts(&tk->term_expires);
@@ -452,7 +452,7 @@ int list_ticket(char **pdata, unsigned int *len)
 		}
 	}
 
-	FOREACH_TICKET(i, tk) {
+	_FOREACH_TICKET(i, tk) {
 		multiple_grant_warning_length = number_sites_marked_as_granted(tk);
 
 		if (multiple_grant_warning_length > 1) {
@@ -461,7 +461,7 @@ int list_ticket(char **pdata, unsigned int *len)
 					"\nWARNING: The ticket %s is granted to multiple sites: ",  // ~55 characters
 					tk->name);
 
-			FOREACH_NODE(site_index, site) {
+			_FOREACH_NODE(site_index, site) {
 				if (tk->sites_where_granted[site_index] > 0) {
 					cp += snprintf(cp,
 						alloc - (cp - data),
@@ -617,7 +617,7 @@ int setup_ticket(void)
 	struct ticket_config *tk;
 	int i;
 
-	FOREACH_TICKET(i, tk) {
+	_FOREACH_TICKET(i, tk) {
 		reset_ticket(tk);
 
 		if (local->type == SITE) {
@@ -844,7 +844,7 @@ static void log_lost_servers(struct ticket_config *tk)
 		 */
 		return;
 
-	FOREACH_NODE(i, n) {
+	_FOREACH_NODE(i, n) {
 		if (!(tk->acks_received & n->bitmask)) {
 			tk_log_warn("%s %s didn't acknowledge our %s, "
 			"will retry %d times",
@@ -864,7 +864,7 @@ static void resend_msg(struct ticket_config *tk)
 	if (!(tk->acks_received ^ local->bitmask)) {
 		ticket_broadcast(tk, tk->last_request, 0, RLT_SUCCESS, 0);
 	} else {
-		FOREACH_NODE(i, n) {
+		_FOREACH_NODE(i, n) {
 			if (!(tk->acks_received & n->bitmask)) {
 				n->resend_cnt++;
 				tk_log_debug("resending %s to %s",
@@ -1128,7 +1128,7 @@ void process_tickets(void)
 	int i;
 	timetype last_cron;
 
-	FOREACH_TICKET(i, tk) {
+	_FOREACH_TICKET(i, tk) {
 		if (!has_extprog_exited(tk) &&
 				is_time_set(&tk->next_cron) && !is_past(&tk->next_cron))
 			continue;
@@ -1152,7 +1152,7 @@ void tickets_log_info(void)
 	int i;
 	time_t ts;
 
-	FOREACH_TICKET(i, tk) {
+	_FOREACH_TICKET(i, tk) {
 		ts = wall_ts(&tk->term_expires);
 		tk_log_info("state '%s' "
 				"term %d "
@@ -1350,7 +1350,7 @@ int number_sites_marked_as_granted(struct ticket_config *tk)
 	int i, result = 0;
 	struct booth_site *ignored __attribute__((unused));
 
-	FOREACH_NODE(i, ignored) {
+	_FOREACH_NODE(i, ignored) {
 		result += tk->sites_where_granted[i];
 	}
 

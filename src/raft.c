@@ -40,7 +40,7 @@ inline static void clear_election(struct ticket_config *tk)
 
 	tk_log_debug("clear election");
 	tk->votes_received = 0;
-	FOREACH_NODE(i, site) {
+	_FOREACH_NODE(i, site) {
 		tk->votes_for[site->index] = NULL;
 	}
 }

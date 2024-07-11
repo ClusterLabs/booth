@@ -98,7 +98,7 @@ static int find_address(unsigned char ipaddr[BOOTH_IPADDR_LEN],
 	/* One bit left to check means ignore 7 lowest bits. */
 	mask = ~( (1 << (8 - bits_left)) -1);
 
-	FOREACH_NODE(i, node) {
+	_FOREACH_NODE(i, node) {
 		if (family != node->family)
 			continue;
 		n_a = node_to_addr_pointer(node);
@@ -900,7 +900,7 @@ static int booth_udp_broadcast_auth(void *buf, int len)
 		return rv;
 
 	rvs = 0;
-	FOREACH_NODE(i, site) {
+	_FOREACH_NODE(i, site) {
 		if (site != local) {
 			rv = booth_udp_send(site, buf, len);
 			if (!rvs)
