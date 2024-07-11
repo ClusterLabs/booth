@@ -399,9 +399,9 @@ static int setup_config(struct booth_config **conf, int type)
 			return -EINVAL;
 		}
 		local->local = 1;
-	} else
-		find_myself(NULL, type == CLIENT || type == GEOSTORE);
-
+	} else {
+		find_myself(booth_conf, NULL, type == CLIENT || type == GEOSTORE);
+	}
 
 	rv = check_config(booth_conf, type);
 	if (rv < 0)

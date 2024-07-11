@@ -58,7 +58,19 @@ struct booth_transport {
 };
 
 extern const struct booth_transport booth_transport[TRANSPORT_ENTRIES];
-int find_myself(struct booth_site **me, int fuzzy_allowed);
+
+/**
+ * @internal
+ * Attempts to pick identity of self from config-tracked enumeration of sites
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[out] mep when self-discovery successful, site pointer is stored here
+ * @param[in] fuzzy_allowed whether it's OK to approximate the match
+ *
+ * @return 0 on success or negative value (-1 or -errno) on error
+ */
+int find_myself(struct booth_config *conf, struct booth_site **me,
+		int fuzzy_allowed);
 
 int read_client(struct client *req_cl);
 int check_boothc_header(struct boothc_header *data, int len_incl_data);
