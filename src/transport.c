@@ -59,7 +59,7 @@ struct booth_site *local = NULL;
  * or positive integer to indicate sender's ID that will then be
  * emitted in the error log message together with the real source
  * address if this is available */
-static int (*deliver_fn) (void *msg, int msglen);
+static int (*deliver_fn) (struct booth_config *conf, void *msg, int msglen);
 
 
 static void parse_rtattr(struct rtattr *tb[],
@@ -431,7 +431,7 @@ int read_client(struct client *req_cl)
 
 
 /* Only used for client requests (tcp) */
-static void process_connection(int ci)
+static void process_connection(struct booth_config *conf, int ci)
 {
 	struct client *req_cl;
 	void *msg = NULL;
@@ -507,7 +507,7 @@ kill:
 }
 
 
-static void process_tcp_listener(int ci)
+static void process_tcp_listener(struct booth_config *conf, int ci)
 {
 	int fd, i, flags, one = 1;
 	socklen_t addrlen = sizeof(struct sockaddr);
@@ -803,7 +803,7 @@ ex:
 
 
 /* Receive/process callback for UDP */
-static void process_recv(int ci)
+static void process_recv(struct booth_config *conf, int ci)
 {
 	struct sockaddr_storage sa;
 	int rv;
@@ -824,7 +824,7 @@ static void process_recv(int ci)
 	if (rv == -1)
 		return;
 
-	rv = deliver_fn((void*)msg, rv);
+	rv = deliver_fn(conf, (void*) msg, rv);
 	if (rv > 0) {
 		if (getnameinfo((struct sockaddr *)&sa, sa_len,
 				buffer, sizeof(buffer), NULL, 0,
@@ -1105,7 +1105,7 @@ int send_header_plus(int fd, struct boothc_hdr_msg *msg, void *data, int len)
 }
 
 /* UDP message receiver (see also deliver_fn declaration's comment) */
-int message_recv(void *msg, int msglen)
+int message_recv(struct booth_config *conf, void *msg, int msglen)
 {
 	uint32_t from;
 	struct boothc_header *header;
@@ -1114,7 +1114,7 @@ int message_recv(void *msg, int msglen)
 	header = (struct boothc_header *)msg;
 
 	from = ntohl(header->from);
-	if (!find_site_by_id(from, &source)) {
+	if (!find_site_by_id(conf, from, &source)) {
 		/* caller knows the actual source address, pass
 		   the (assuredly) positive number and let it report */
 		from = from ? from : ~from;  /* avoid 0 (success) */
@@ -1142,6 +1142,6 @@ int message_recv(void *msg, int msglen)
 		 */
 		return attr_recv(msg, source);
 	} else {
-		return ticket_recv(msg, source);
+		return ticket_recv(conf, msg, source);
 	}
 }

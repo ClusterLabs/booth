@@ -165,8 +165,7 @@ static void client_dead(int ci)
 }
 
 int client_add(int fd, const struct booth_transport *tpt,
-		void (*workfn)(int ci),
-		void (*deadfn)(int ci))
+		workfn_t workfn, void (*deadfn)(int ci))
 {
 	int i;
 	struct client *c;
@@ -521,7 +520,7 @@ static int process_signals(void)
 
 static int loop(int fd)
 {
-	void (*workfn) (int ci);
+	workfn_t workfn;
 	void (*deadfn) (int ci);
 	int rv, i;
 
@@ -529,9 +528,10 @@ static int loop(int fd)
 	if (rv < 0)
 		goto fail;
 
-	rv = setup_ticket();
-	if (rv < 0)
+	rv = setup_ticket(booth_conf);
+	if (rv < 0) {
 		goto fail;
+	}
 
 	rv = write_daemon_state(fd, BOOTHD_STARTED);
 	if (rv != 0) {
@@ -559,8 +559,9 @@ static int loop(int fd)
 
 			if (pollfds[i].revents & POLLIN) {
 				workfn = clients[i].workfn;
-				if (workfn)
-					workfn(i);
+				if (workfn) {
+					workfn(booth_conf, i);
+				}
 			}
 			if (pollfds[i].revents &
 					(POLLERR | POLLHUP | POLLNVAL)) {
@@ -837,7 +838,7 @@ read_more:
 	if (rv == 1) {
 		tpt->close(site);
 		leader_id = ntohl(reply.ticket.leader);
-		if (!find_site_by_id(leader_id, &site)) {
+		if (!find_site_by_id(booth_conf, leader_id, &site)) {
 			log_error("Message with unknown redirect site %x received", leader_id);
 			rv = -1;
 			goto out_close;

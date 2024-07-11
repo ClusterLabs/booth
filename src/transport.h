@@ -70,7 +70,17 @@ int booth_udp_send_auth(struct booth_site *to, void *buf, int len);
 int booth_tcp_open(struct booth_site *to);
 int booth_tcp_send(struct booth_site *to, void *buf, int len);
 
-int message_recv(void *msg, int msglen);
+/**
+ * @internal
+ * First stage of incoming datagram handling (authentication)
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[in] msg raw message to act upon
+ * @param[in] msglen length of #msg
+ *
+ * @return 0 on success or negative value (-1 or -errno) on error
+ */
+int message_recv(struct booth_config *conf, void *msg, int msglen);
 
 inline static void * node_to_addr_pointer(struct booth_site *node) {
 	switch (node->family) {

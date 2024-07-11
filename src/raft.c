@@ -23,9 +23,9 @@
 #include <arpa/inet.h>
 #include "booth.h"
 #include "timer.h"
+#include "config.h"
 #include "transport.h"
 #include "inline-fn.h"
-#include "config.h"
 #include "raft.h"
 #include "ticket.h"
 #include "request.h"
