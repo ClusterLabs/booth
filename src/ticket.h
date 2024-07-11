@@ -35,6 +35,17 @@ extern int TIME_RES;
 #define DEFAULT_RETRIES			10
 
 
+#define FOREACH_TICKET(b_, i_, t_) \
+	for (i_ = 0; \
+	     (t_ = (b_)->ticket + i_, i_ < (b_)->ticket_count); \
+	     i_++)
+
+#define FOREACH_NODE(b_, i_, n_) \
+	for (i_ = 0; \
+	     (n_ = (b_)->site + i_, i_ < (b_)->site_count); \
+	     i_++)
+
+
 #define _FOREACH_TICKET(i_, t_) \
 	for (i_ = 0; \
 	     (t_ = booth_conf->ticket + i_, i_ < booth_conf->ticket_count); \
