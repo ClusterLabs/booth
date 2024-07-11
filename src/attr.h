@@ -31,7 +31,18 @@
 
 void print_geostore_usage(void);
 int test_attr_reply(cmd_result_t reply_code, cmd_request_t cmd);
-int do_attr_command(cmd_request_t cmd);
+
+/**
+ * @internal
+ * Carry out a geo-atribute related command
+ *
+ * @param[in,out] conf  config object to refer to
+ * @param[in]     cmd   what to perform
+ *
+ * @return 0 or negative value (-1 or -errno) on error
+ */
+int do_attr_command(struct booth_config *conf, cmd_request_t cmd);
+
 int process_attr_request(struct client *req_client, void *buf);
 int attr_recv(void *buf, struct booth_site *source);
 int store_geo_attr(struct ticket_config *tk, const char *name, const char *val, int notime);
