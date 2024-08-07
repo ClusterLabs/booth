@@ -25,6 +25,17 @@
 #include "booth.h"
 #include "timer.h"
 #include "raft.h"
+
+/* Forward declaration of the booth config structure that will be defined later.
+ * This is necessary here because transport.h references booth_config, but this
+ * file also references transport_layer_t.  We need some way to break the
+ * circular dependency.
+ *
+ * This also means that config.h must always be included before transport.h in
+ * any source files.
+ */
+struct booth_config;
+
 #include "transport.h"
 
 
@@ -355,8 +366,33 @@ int read_config(struct booth_config **conf, const char *path, int type);
  */
 int check_config(struct booth_config *conf, int type);
 
-int find_site_by_name(char *site, struct booth_site **node, int any_type);
-int find_site_by_id(uint32_t site_id, struct booth_site **node);
+/**
+ * @internal
+ * Find site in booth configuration by resolved host name
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[in] site name to match against previously resolved host names
+ * @param[out] node relevant tracked data when found
+ * @param[in] any_type whether or not to consider also non-site members
+ *
+ * @return 0 if nothing found, or 1 when found (node assigned accordingly)
+ */
+int find_site_by_name(struct booth_config *conf, const char *site,
+		      struct booth_site **node, int any_type);
+
+
+/**
+ * @internal
+ * Find site in booth configuration by a hash (id)
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[in] site_id hash (id) to match against previously resolved ones
+ * @param[out] node relevant tracked data when found
+ *
+ * @return 0 if nothing found, or 1 when found (node assigned accordingly)
+ */
+int find_site_by_id(struct booth_config *conf, uint32_t site_id,
+		    struct booth_site **node);
 
 const char *type_to_string(int type);
 

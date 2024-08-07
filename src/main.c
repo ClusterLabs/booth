@@ -165,8 +165,7 @@ static void client_dead(int ci)
 }
 
 int client_add(int fd, const struct booth_transport *tpt,
-		void (*workfn)(int ci),
-		void (*deadfn)(int ci))
+		workfn_t workfn, void (*deadfn)(int ci))
 {
 	int i;
 	struct client *c;
@@ -233,7 +232,7 @@ static int format_peers(char **pdata, unsigned int *len)
 		return -ENOMEM;
 
 	cp = data;
-	FOREACH_NODE(i, s) {
+	_FOREACH_NODE(i, s) {
 		if (s == local)
 			continue;
 		strftime(time_str, sizeof(time_str), "%F %T",
@@ -394,15 +393,15 @@ static int setup_config(struct booth_config **conf, int type)
 
 	/* Set "local" pointer, ignoring errors. */
 	if (cl.type == DAEMON && cl.site[0]) {
-		if (!find_site_by_name(cl.site, &local, 1)) {
+		if (!find_site_by_name(booth_conf, cl.site, &local, 1)) {
 			log_error("Cannot find \"%s\" in the configuration.",
 					cl.site);
 			return -EINVAL;
 		}
 		local->local = 1;
-	} else
-		find_myself(NULL, type == CLIENT || type == GEOSTORE);
-
+	} else {
+		find_myself(booth_conf, NULL, type == CLIENT || type == GEOSTORE);
+	}
 
 	rv = check_config(booth_conf, type);
 	if (rv < 0)
@@ -521,7 +520,7 @@ static int process_signals(void)
 
 static int loop(int fd)
 {
-	void (*workfn) (int ci);
+	workfn_t workfn;
 	void (*deadfn) (int ci);
 	int rv, i;
 
@@ -529,9 +528,10 @@ static int loop(int fd)
 	if (rv < 0)
 		goto fail;
 
-	rv = setup_ticket();
-	if (rv < 0)
+	rv = setup_ticket(booth_conf);
+	if (rv < 0) {
 		goto fail;
+	}
 
 	rv = write_daemon_state(fd, BOOTHD_STARTED);
 	if (rv != 0) {
@@ -559,8 +559,9 @@ static int loop(int fd)
 
 			if (pollfds[i].revents & POLLIN) {
 				workfn = clients[i].workfn;
-				if (workfn)
-					workfn(i);
+				if (workfn) {
+					workfn(booth_conf, i);
+				}
 			}
 			if (pollfds[i].revents &
 					(POLLERR | POLLHUP | POLLNVAL)) {
@@ -708,7 +709,7 @@ static int query_get_string_answer(cmd_request_t cmd)
 
 	if (!*cl.site)
 		site = local;
-	else if (!find_site_by_name(cl.site, &site, 1)) {
+	else if (!find_site_by_name(booth_conf, cl.site, &site, 1)) {
 		log_error("cannot find site \"%s\"", cl.site);
 		rv = ENOENT;
 		goto out;
@@ -782,7 +783,7 @@ static int do_command(cmd_request_t cmd)
 	if (!*cl.site)
 		site = local;
 	else {
-		if (!find_site_by_name(cl.site, &site, 1)) {
+		if (!find_site_by_name(booth_conf, cl.site, &site, 1)) {
 			log_error("Site \"%s\" not configured.", cl.site);
 			goto out_close;
 		}
@@ -837,7 +838,7 @@ read_more:
 	if (rv == 1) {
 		tpt->close(site);
 		leader_id = ntohl(reply.ticket.leader);
-		if (!find_site_by_id(leader_id, &site)) {
+		if (!find_site_by_id(booth_conf, leader_id, &site)) {
 			log_error("Message with unknown redirect site %x received", leader_id);
 			rv = -1;
 			goto out_close;
@@ -1617,7 +1618,7 @@ static int do_attr(struct booth_config **conf)
 
 	case ATTR_SET:
 	case ATTR_DEL:
-		rv = do_attr_command(cl.op);
+		rv = do_attr_command(booth_conf, cl.op);
 		break;
 	}
 

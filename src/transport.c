@@ -59,7 +59,7 @@ struct booth_site *local = NULL;
  * or positive integer to indicate sender's ID that will then be
  * emitted in the error log message together with the real source
  * address if this is available */
-static int (*deliver_fn) (void *msg, int msglen);
+static int (*deliver_fn) (struct booth_config *conf, void *msg, int msglen);
 
 
 static void parse_rtattr(struct rtattr *tb[],
@@ -78,11 +78,12 @@ enum match_type {
 	EXACT_MATCH,
 };
 
-static int find_address(unsigned char ipaddr[BOOTH_IPADDR_LEN],
-		int family, int prefixlen,
-		int fuzzy_allowed,
-		struct booth_site **me,
-		int *address_bits_matched)
+static int find_address(struct booth_config *conf,
+			unsigned char ipaddr[BOOTH_IPADDR_LEN],
+			int family, int prefixlen,
+			int fuzzy_allowed,
+			struct booth_site **me,
+			int *address_bits_matched)
 {
 	int i;
 	struct booth_site *node;
@@ -92,13 +93,14 @@ static int find_address(unsigned char ipaddr[BOOTH_IPADDR_LEN],
 	int matched;
 	enum match_type did_match = NO_MATCH;
 
+	assert(conf != NULL);
 
 	bytes = prefixlen / 8;
 	bits_left = prefixlen % 8;
 	/* One bit left to check means ignore 7 lowest bits. */
 	mask = ~( (1 << (8 - bits_left)) -1);
 
-	FOREACH_NODE(i, node) {
+	FOREACH_NODE(conf, i, node) {
 		if (family != node->family)
 			continue;
 		n_a = node_to_addr_pointer(node);
@@ -140,8 +142,8 @@ static int find_address(unsigned char ipaddr[BOOTH_IPADDR_LEN],
 }
 
 
-int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed);
-int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed)
+static int _find_myself(struct booth_config *conf, int family,
+			struct booth_site **mep, int fuzzy_allowed)
 {
 	int fd;
 	struct sockaddr_nl nladdr;
@@ -247,9 +249,9 @@ int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed)
 				 * the function find_address will try to return another, most similar
 				 * address (with the longest possible number of same bytes). */
 				if (ifa->ifa_prefixlen > address_bits_matched) {
-					find_address(ipaddr,
-							ifa->ifa_family, ifa->ifa_prefixlen,
-							fuzzy_allowed, &me, &address_bits_matched);
+					find_address(conf, ipaddr,
+						     ifa->ifa_family, ifa->ifa_prefixlen,
+						     fuzzy_allowed, &me, &address_bits_matched);
 
 					if (me) {
 						log_debug("found myself at %s (%d bits matched)",
@@ -263,9 +265,9 @@ int _find_myself(int family, struct booth_site **mep, int fuzzy_allowed)
 				 * call the function find_address with disabled searching of
 				 * similar addresses (fuzzy_allowed == 0) */
 				else if (ifa->ifa_prefixlen == address_bits_matched) {
-					find_address(ipaddr,
-							ifa->ifa_family, ifa->ifa_prefixlen,
-							0 /* fuzzy_allowed */, &me, &address_bits_matched);
+					find_address(conf, ipaddr,
+						     ifa->ifa_family, ifa->ifa_prefixlen,
+						     0 /* fuzzy_allowed */, &me, &address_bits_matched);
 
 					if (me) {
 						log_debug("found myself at %s (exact match)",
@@ -290,10 +292,11 @@ found:
 	return 1;
 }
 
-int find_myself(struct booth_site **mep, int fuzzy_allowed)
+int find_myself(struct booth_config *conf, struct booth_site **mep,
+		int fuzzy_allowed)
 {
-	return _find_myself(AF_INET6, mep, fuzzy_allowed) ||
-		_find_myself(AF_INET, mep, fuzzy_allowed);
+	return _find_myself(conf, AF_INET6, mep, fuzzy_allowed) ||
+	       _find_myself(conf, AF_INET, mep, fuzzy_allowed);
 }
 
 
@@ -431,7 +434,7 @@ int read_client(struct client *req_cl)
 
 
 /* Only used for client requests (tcp) */
-static void process_connection(int ci)
+static void process_connection(struct booth_config *conf, int ci)
 {
 	struct client *req_cl;
 	void *msg = NULL;
@@ -507,7 +510,7 @@ kill:
 }
 
 
-static void process_tcp_listener(int ci)
+static void process_tcp_listener(struct booth_config *conf, int ci)
 {
 	int fd, i, flags, one = 1;
 	socklen_t addrlen = sizeof(struct sockaddr);
@@ -803,7 +806,7 @@ ex:
 
 
 /* Receive/process callback for UDP */
-static void process_recv(int ci)
+static void process_recv(struct booth_config *conf, int ci)
 {
 	struct sockaddr_storage sa;
 	int rv;
@@ -824,7 +827,7 @@ static void process_recv(int ci)
 	if (rv == -1)
 		return;
 
-	rv = deliver_fn((void*)msg, rv);
+	rv = deliver_fn(conf, (void*) msg, rv);
 	if (rv > 0) {
 		if (getnameinfo((struct sockaddr *)&sa, sa_len,
 				buffer, sizeof(buffer), NULL, 0,
@@ -900,7 +903,7 @@ static int booth_udp_broadcast_auth(void *buf, int len)
 		return rv;
 
 	rvs = 0;
-	FOREACH_NODE(i, site) {
+	_FOREACH_NODE(i, site) {
 		if (site != local) {
 			rv = booth_udp_send(site, buf, len);
 			if (!rvs)
@@ -1105,7 +1108,7 @@ int send_header_plus(int fd, struct boothc_hdr_msg *msg, void *data, int len)
 }
 
 /* UDP message receiver (see also deliver_fn declaration's comment) */
-int message_recv(void *msg, int msglen)
+int message_recv(struct booth_config *conf, void *msg, int msglen)
 {
 	uint32_t from;
 	struct boothc_header *header;
@@ -1114,7 +1117,7 @@ int message_recv(void *msg, int msglen)
 	header = (struct boothc_header *)msg;
 
 	from = ntohl(header->from);
-	if (!find_site_by_id(from, &source)) {
+	if (!find_site_by_id(conf, from, &source)) {
 		/* caller knows the actual source address, pass
 		   the (assuredly) positive number and let it report */
 		from = from ? from : ~from;  /* avoid 0 (success) */
@@ -1142,6 +1145,6 @@ int message_recv(void *msg, int msglen)
 		 */
 		return attr_recv(msg, source);
 	} else {
-		return ticket_recv(msg, source);
+		return ticket_recv(conf, msg, source);
 	}
 }

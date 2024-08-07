@@ -18,9 +18,9 @@
 
 #include "manual.h"
 
+#include "config.h"
 #include "transport.h"
 #include "ticket.h"
-#include "config.h"
 #include "log.h"
 #include "request.h"
 

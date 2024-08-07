@@ -149,7 +149,7 @@ static int read_server_reply(
 	return rv;
 }
 
-int do_attr_command(cmd_request_t cmd)
+int do_attr_command(struct booth_config *conf, cmd_request_t cmd)
 {
 	struct booth_site *site = NULL;
 	struct boothc_header *header;
@@ -160,7 +160,7 @@ int do_attr_command(cmd_request_t cmd)
 	if (!*cl.site)
 		site = local;
 	else {
-		if (!find_site_by_name(cl.site, &site, 1)) {
+		if (!find_site_by_name(conf, cl.site, &site, 1)) {
 			log_error("Site \"%s\" not configured.", cl.site);
 			goto out_close;
 		}

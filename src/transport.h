@@ -58,7 +58,19 @@ struct booth_transport {
 };
 
 extern const struct booth_transport booth_transport[TRANSPORT_ENTRIES];
-int find_myself(struct booth_site **me, int fuzzy_allowed);
+
+/**
+ * @internal
+ * Attempts to pick identity of self from config-tracked enumeration of sites
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[out] mep when self-discovery successful, site pointer is stored here
+ * @param[in] fuzzy_allowed whether it's OK to approximate the match
+ *
+ * @return 0 on success or negative value (-1 or -errno) on error
+ */
+int find_myself(struct booth_config *conf, struct booth_site **me,
+		int fuzzy_allowed);
 
 int read_client(struct client *req_cl);
 int check_boothc_header(struct boothc_header *data, int len_incl_data);
@@ -70,7 +82,17 @@ int booth_udp_send_auth(struct booth_site *to, void *buf, int len);
 int booth_tcp_open(struct booth_site *to);
 int booth_tcp_send(struct booth_site *to, void *buf, int len);
 
-int message_recv(void *msg, int msglen);
+/**
+ * @internal
+ * First stage of incoming datagram handling (authentication)
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[in] msg raw message to act upon
+ * @param[in] msglen length of #msg
+ *
+ * @return 0 on success or negative value (-1 or -errno) on error
+ */
+int message_recv(struct booth_config *conf, void *msg, int msglen);
 
 inline static void * node_to_addr_pointer(struct booth_site *node) {
 	switch (node->family) {

@@ -151,8 +151,8 @@ static int pcmk_del_attr(struct ticket_config *tk, const char *attr)
 }
 
 
-typedef int (*attr_f)(struct ticket_config *tk, const char *name,
-		      const char *val);
+typedef int (*attr_f)(struct booth_config *conf, struct ticket_config *tk,
+		      const char *name, const char *val);
 
 struct attr_tab
 {
@@ -160,15 +160,15 @@ struct attr_tab
 	attr_f handling_f;
 };
 
-static int save_expires(struct ticket_config *tk, const char *name,
-			const char *val)
+static int save_expires(struct booth_config *conf, struct ticket_config *tk,
+			const char *name, const char *val)
 {
 	secs2tv(unwall_ts(atol(val)), &tk->term_expires);
 	return 0;
 }
 
-static int save_term(struct ticket_config *tk, const char *name,
-		     const char *val)
+static int save_term(struct booth_config *conf, struct ticket_config *tk,
+		     const char *name, const char *val)
 {
 	tk->current_term = atol(val);
 	return 0;
@@ -188,23 +188,23 @@ static int parse_boolean(const char *val)
 	return v;
 }
 
-static int save_granted(struct ticket_config *tk, const char *name,
-			const char *val)
+static int save_granted(struct booth_config *conf, struct ticket_config *tk,
+			const char *name, const char *val)
 {
 	tk->is_granted = parse_boolean(val);
 	return 0;
 }
 
-static int save_owner(struct ticket_config *tk, const char *name,
-		      const char *val)
+static int save_owner(struct booth_config *conf, struct ticket_config *tk,
+		      const char *name, const char *val)
 {
 	/* No check, node could have been deconfigured. */
 	tk->leader = NULL;
-	return !find_site_by_id(atol(val), &tk->leader);
+	return !find_site_by_id(conf, atol(val), &tk->leader);
 }
 
-static int ignore_attr(struct ticket_config *tk, const char *name,
-		       const char *val)
+static int ignore_attr(struct booth_config *conf, struct ticket_config *tk,
+		       const char *name, const char *val)
 {
 	return 0;
 }
@@ -276,7 +276,8 @@ out:
 	return rv | pipe_rv;
 }
 
-static int save_attributes(struct ticket_config *tk, xmlDocPtr doc)
+static int save_attributes(struct booth_config *conf, struct ticket_config *tk,
+			   xmlDocPtr doc)
 {
 	int rv = 0, rc;
 	xmlNodePtr n;
@@ -297,7 +298,8 @@ static int save_attributes(struct ticket_config *tk, xmlDocPtr doc)
 		v = xmlGetProp(n, attr->name);
 		for (atp = attr_handlers; atp->name; atp++) {
 			if (!strcmp(atp->name, (const char *) attr->name)) {
-				rc = atp->handling_f(tk, (const char *) attr->name,
+				rc = atp->handling_f(conf, tk,
+						     (const char *) attr->name,
 						     (const char *) v);
 				break;
 			}
@@ -318,7 +320,8 @@ static int save_attributes(struct ticket_config *tk, xmlDocPtr doc)
 
 #define CHUNK_SIZE 256
 
-static int parse_ticket_state(struct ticket_config *tk, FILE *p)
+static int parse_ticket_state(struct booth_config *conf, struct ticket_config *tk,
+			      FILE *p)
 {
 	int rv = 0;
 	GString *input = NULL;
@@ -359,7 +362,7 @@ static int parse_ticket_state(struct ticket_config *tk, FILE *p)
 		rv = -EINVAL;
 		goto out;
 	}
-	rv = save_attributes(tk, doc);
+	rv = save_attributes(conf, tk, doc);
 
 out:
 	if (doc)
@@ -369,7 +372,7 @@ out:
 	return rv;
 }
 
-static int pcmk_load_ticket(struct ticket_config *tk)
+static int pcmk_load_ticket(struct booth_config *conf, struct ticket_config *tk)
 {
 	char cmd[COMMAND_MAX];
 	int rv = 0, pipe_rv;
@@ -393,7 +396,7 @@ static int pcmk_load_ticket(struct ticket_config *tk)
 		return (pipe_rv != 0 ? pipe_rv : EINVAL);
 	}
 
-	rv = parse_ticket_state(tk, p);
+	rv = parse_ticket_state(conf, tk, p);
 
 	if (!tk->leader) {
 		/* Hmm, no site found for the ticket we have in the

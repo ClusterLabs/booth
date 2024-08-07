@@ -77,6 +77,10 @@
 /* Says that another one should recover. */
 #define TICKET_LOST CHAR2CONST('L', 'O', 'S', 'T')
 
+struct booth_config;
+
+typedef void (*workfn_t)(struct booth_config *conf, int ci);
+
 
 typedef char boothc_site[BOOTH_NAME_LEN];
 typedef char boothc_ticket[BOOTH_NAME_LEN];
@@ -338,7 +342,7 @@ struct client {
 	const struct booth_transport *transport;
 	struct boothc_ticket_msg *msg;
 	int offset; /* bytes read so far into msg */
-	void (*workfn)(int);
+	workfn_t workfn;
 	void (*deadfn)(int);
 };
 
@@ -347,7 +351,7 @@ extern struct pollfd *pollfds;
 
 
 int client_add(int fd, const struct booth_transport *tpt,
-		void (*workfn)(int ci), void (*deadfn)(int ci));
+		workfn_t workfn, void (*deadfn)(int ci));
 int find_client_by_fd(int fd);
 void safe_copy(char *dest, char *value, size_t buflen, const char *description);
 int update_authkey(void);
