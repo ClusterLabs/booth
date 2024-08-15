@@ -120,6 +120,17 @@ static int sig_exit_handler_sig = 0;
 static int sig_usr1_handler_called = 0;
 static int sig_chld_handler_called = 0;
 
+static const char *state_string(BOOTH_DAEMON_STATE st)
+{
+	if (st == BOOTHD_STARTED) {
+		return "started";
+	} else if (st == BOOTHD_STARTING) {
+		return "starting";
+	} else {
+		return "invalid";
+	}
+}
+
 static void client_alloc(void)
 {
 	int i;
@@ -455,9 +466,7 @@ static int write_daemon_state(int fd, int state)
 			"booth_addr_string='%s' "
 			"booth_port=%d\n",
 		getpid(), 
-		( state == BOOTHD_STARTED  ? "started"  : 
-		  state == BOOTHD_STARTING ? "starting" : 
-		  "invalid"), 
+		state_string(state),
 		type_to_string(local->type),
 		booth_conf->name,
 		local->site_id,
