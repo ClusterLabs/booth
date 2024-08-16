@@ -453,59 +453,49 @@ out:
 
 static int write_daemon_state(int fd, int state)
 {
-	char buffer[1024];
+	char *buffer;
 	int rv, size;
 
-	size = sizeof(buffer) - 1;
-	rv = snprintf(buffer, size,
-			"booth_pid=%d "
-			"booth_state=%s "
-			"booth_type=%s "
-			"booth_cfg_name='%s' "
-			"booth_id=%d "
-			"booth_addr_string='%s' "
-			"booth_port=%d\n",
-		getpid(), 
-		state_string(state),
-		type_to_string(local->type),
-		booth_conf->name,
-		local->site_id,
-		local->addr_string,
-		site_port(local));
+	rv = asprintf(&buffer, "booth_pid=%d booth_state=%s booth_type=%s "
+			       "booth_cfg_name='%s' booth_id=%d "
+			       "booth_addr_string='%s' booth_port=%d\n",
+		      getpid(), state_string(state), type_to_string(local->type),
+		      booth_conf->name, get_local_id(), site_string(local),
+		      site_port(local));
 
-	if (rv < 0 || rv == size) {
-		log_error("Buffer filled up in write_daemon_state().");
+	if (rv < 0) {
+		log_error("Buffer write failed in write_daemon_state().");
 		return -1;
 	}
-	size = rv;
 
+	size = rv;
 
 	rv = ftruncate(fd, 0);
 	if (rv < 0) {
 		log_error("lockfile %s truncate error %d: %s",
-				cl.lockfile, errno, strerror(errno));
+			  cl.lockfile, errno, strerror(errno));
+		free(buffer);
 		return rv;
 	}
-
 
 	rv = lseek(fd, 0, SEEK_SET);
 	if (rv < 0) {
 		log_error("lseek set fd(%d) offset to 0 error, return(%d), message(%s)",
-			fd, rv, strerror(errno));
-		rv = -1;
-		return rv;
-	} 
-
+			  fd, rv, strerror(errno));
+		free(buffer);
+		return -1;
+	}
 
 	rv = write(fd, buffer, size);
 
 	if (rv != size) {
 		log_error("write to fd(%d, %d) returned %d, errno %d, message(%s)",
-                      fd, size,
-		      rv, errno, strerror(errno));
+			  fd, size, rv, errno, strerror(errno));
+		free(buffer);
 		return -1;
 	}
 
+	free(buffer);
 	return 0;
 }
 
