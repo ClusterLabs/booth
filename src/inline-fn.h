@@ -153,9 +153,23 @@ static inline struct booth_transport const *transport(void)
 }
 
 
-static inline const char *site_string(struct booth_site *site)
+static inline const char *site_string(const struct booth_site *site)
 {
 	return site ? site->addr_string : "NONE";
+}
+
+
+static inline uint16_t site_port(const struct booth_site *site)
+{
+	assert(site != NULL);
+
+	if (site->family == AF_INET) {
+		return ntohs(site->sa4.sin_port);
+	} else if (site->family == AF_INET6) {
+		return ntohs(site->sa6.sin6_port);
+	} else {
+		return 0;
+	}
 }
 
 
