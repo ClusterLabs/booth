@@ -465,7 +465,7 @@ static void process_connection(struct booth_config *conf, int ci)
 	 * result a second later? */
 	switch (ntohl(header->cmd)) {
 	case CMD_LIST:
-		ticket_answer_list(req_cl->fd);
+		ticket_answer_list(conf, req_cl->fd);
 		goto kill;
 	case CMD_PEERS:
 		list_peers(req_cl->fd);

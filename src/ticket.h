@@ -122,7 +122,6 @@ int check_ticket(struct booth_config *conf, char *ticket, struct ticket_config *
 
 int grant_ticket(struct ticket_config *ticket);
 int revoke_ticket(struct ticket_config *ticket);
-int list_ticket(char **pdata, unsigned int *len);
 
 /**
  * @internal
@@ -173,7 +172,16 @@ int postpone_ticket_processing(struct ticket_config *tk);
 
 int acquire_ticket(struct ticket_config *tk, cmd_reason_t reason);
 
-int ticket_answer_list(int fd);
+/**
+ * @internal
+ * Implementation of ticket listing
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[in]     fd   file descriptor of the socket to respond to
+ *
+ * @return see @list_ticket and @send_header_plus
+ */
+int ticket_answer_list(struct booth_config *conf, int fd);
 
 /**
  * @internal
@@ -190,8 +198,22 @@ int process_client_request(struct booth_config *conf, struct client *req_client,
 
 int ticket_write(struct ticket_config *tk);
 
-void process_tickets(void);
-void tickets_log_info(void);
+/**
+ * @internal
+ * Mainloop of booth ticket handling
+ *
+ * @param[in,out] conf config object to refer to
+ */
+void process_tickets(struct booth_config *conf);
+
+/**
+ * @internal
+ * Log properties of all tickets
+ *
+ * @param[in,out] conf config object to refer to
+ */
+void tickets_log_info(struct booth_config *conf);
+
 char *state_to_string(uint32_t state_ho);
 int send_reject(struct booth_site *dest, struct ticket_config *tk,
 	cmd_result_t code, struct boothc_ticket_msg *in_msg);
