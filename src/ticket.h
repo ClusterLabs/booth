@@ -107,7 +107,19 @@ extern int TIME_RES;
 void save_committed_tkt(struct ticket_config *tk);
 void disown_ticket(struct ticket_config *tk);
 int disown_if_expired(struct ticket_config *tk);
-int check_ticket(char *ticket, struct ticket_config **tc);
+
+/**
+ * @internal
+ * Like @find_ticket_by_name, but perform sanity checks on the found ticket
+ *
+ * @param[in,out] conf   config object to refer to
+ * @param[in]     ticket name of the ticket to search for
+ * @param[out]    found  place the reference here when found
+ *
+ * @return 0 on failure, see @find_ticket_by_name otherwise
+ */
+int check_ticket(struct booth_config *conf, char *ticket, struct ticket_config **tc);
+
 int grant_ticket(struct ticket_config *ticket);
 int revoke_ticket(struct ticket_config *ticket);
 int list_ticket(char **pdata, unsigned int *len);
@@ -143,7 +155,18 @@ int check_max_len_valid(const char *s, int max);
 int do_grant_ticket(struct ticket_config *ticket, int options);
 int do_revoke_ticket(struct ticket_config *tk);
 
-int find_ticket_by_name(const char *ticket, struct ticket_config **found);
+/**
+ * @internal
+ * Find a ticket based on a given name
+ *
+ * @param[in,out] conf   config object to refer to
+ * @param[in]     ticket name of the ticket to search for
+ * @param[out]    found  place the reference here when found
+ *
+ * @return see @list_ticket and @send_header_plus
+ */
+int find_ticket_by_name(struct booth_config *conf,
+			const char *ticket, struct ticket_config **found);
 
 void set_ticket_wakeup(struct ticket_config *tk);
 int postpone_ticket_processing(struct ticket_config *tk);
@@ -151,7 +174,19 @@ int postpone_ticket_processing(struct ticket_config *tk);
 int acquire_ticket(struct ticket_config *tk, cmd_reason_t reason);
 
 int ticket_answer_list(int fd);
-int process_client_request(struct client *req_client, void *buf);
+
+/**
+ * @internal
+ * Process request from the client (as opposed to the peer daemon)
+ *
+ * @param[in,out] conf       config object to refer to
+ * @param[in]     req_client client structure of the sender
+ * @param[in]     buf        client message
+ *
+ * @return 1 on success, or 0 when not yet done with the message
+ */
+int process_client_request(struct booth_config *conf, struct client *req_client,
+			   void *buf);
 
 int ticket_write(struct ticket_config *tk);
 

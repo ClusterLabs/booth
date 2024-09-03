@@ -406,7 +406,8 @@ static cmd_result_t attr_list(struct ticket_config *tk, int fd, struct boothc_at
 	return rv;
 }
 
-int process_attr_request(struct client *req_client, void *buf)
+int process_attr_request(struct booth_config *conf, struct client *req_client,
+			 void *buf)
 {
 	cmd_result_t rv = RLT_SYNC_FAIL;
 	struct ticket_config *tk;
@@ -416,7 +417,7 @@ int process_attr_request(struct client *req_client, void *buf)
 
 	msg = (struct boothc_attr_msg *)buf;
 	cmd = ntohl(msg->header.cmd);
-	if (!check_ticket(msg->attr.tkt_id, &tk)) {
+	if (!check_ticket(conf, msg->attr.tkt_id, &tk)) {
 		log_warn("client referenced unknown ticket %s",
 				msg->attr.tkt_id);
 		rv = RLT_INVALID_ARG;
@@ -454,7 +455,7 @@ reply_now:
  * only clients retrieve/manage attributes and they connect
  * directly to the target site
  */
-int attr_recv(void *buf, struct booth_site *source)
+int attr_recv(struct booth_config *conf, void *buf, struct booth_site *source)
 {
 	struct boothc_attr_msg *msg;
 	struct ticket_config *tk;
@@ -464,7 +465,7 @@ int attr_recv(void *buf, struct booth_site *source)
 	log_warn("unexpected attribute message from %s",
 			site_string(source));
 
-	if (!check_ticket(msg->attr.tkt_id, &tk)) {
+	if (!check_ticket(conf, msg->attr.tkt_id, &tk)) {
 		log_warn("got invalid ticket name %s from %s",
 				msg->attr.tkt_id, site_string(source));
 		source->invalid_cnt++;

@@ -57,18 +57,22 @@ int check_max_len_valid(const char *s, int max)
 	return 0;
 }
 
-int find_ticket_by_name(const char *ticket, struct ticket_config **found)
+int find_ticket_by_name(struct booth_config *conf, const char *ticket,
+			struct ticket_config **found)
 {
 	struct ticket_config *tk;
 	int i;
 
-	if (found)
+	if (found) {
 		*found = NULL;
+	}
 
-	_FOREACH_TICKET(i, tk) {
+	FOREACH_TICKET(conf, i, tk) {
 		if (!strncmp(tk->name, ticket, sizeof(tk->name))) {
-			if (found)
+			if (found) {
 				*found = tk;
+			}
+
 			return 1;
 		}
 	}
@@ -76,16 +80,22 @@ int find_ticket_by_name(const char *ticket, struct ticket_config **found)
 	return 0;
 }
 
-int check_ticket(char *ticket, struct ticket_config **found)
+int check_ticket(struct booth_config *conf, char *ticket,
+		 struct ticket_config **found)
 {
-	if (found)
+	if (found) {
 		*found = NULL;
-	if (!booth_conf)
-		return 0;
+	}
 
-	if (!check_max_len_valid(ticket, sizeof(booth_conf->ticket[0].name)))
+	if (conf == NULL) {
 		return 0;
-	return find_ticket_by_name(ticket, found);
+	}
+
+	if (!check_max_len_valid(ticket, sizeof(conf->ticket[0].name))) {
+		return 0;
+	}
+
+	return find_ticket_by_name(conf, ticket, found);
 }
 
 /* is it safe to commit the grant?
@@ -659,7 +669,8 @@ out:
 }
 
 
-int process_client_request(struct client *req_client, void *buf)
+int process_client_request(struct booth_config *conf, struct client *req_client,
+			   void *buf)
 {
 	int rv, rc = 1;
 	struct ticket_config *tk;
@@ -669,7 +680,7 @@ int process_client_request(struct client *req_client, void *buf)
 
 	msg = (struct boothc_ticket_msg *)buf;
 	cmd = ntohl(msg->header.cmd);
-	if (!check_ticket(msg->ticket.id, &tk)) {
+	if (!check_ticket(conf, msg->ticket.id, &tk)) {
 		log_warn("client referenced unknown ticket %s",
 				msg->ticket.id);
 		rv = RLT_INVALID_ARG;
@@ -700,10 +711,11 @@ int process_client_request(struct client *req_client, void *buf)
 		goto reply_now;
 	}
 
-	if (cmd == CMD_REVOKE)
+	if (cmd == CMD_REVOKE) {
 		rv = do_revoke_ticket(tk);
-	else
+	} else {
 		rv = do_grant_ticket(tk, ntohl(msg->header.options));
+	}
 
 	if (rv == RLT_MORE) {
 		/* client may receive further notifications, save the
@@ -1206,7 +1218,7 @@ int ticket_recv(struct booth_config *conf, void *buf, struct booth_site *source)
 
 	msg = (struct boothc_ticket_msg *)buf;
 
-	if (!check_ticket(msg->ticket.id, &tk)) {
+	if (!check_ticket(conf, msg->ticket.id, &tk)) {
 		log_warn("got invalid ticket name %s from %s",
 				msg->ticket.id, site_string(source));
 		source->invalid_cnt++;
