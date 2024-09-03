@@ -206,7 +206,6 @@ void add_random_delay(struct ticket_config *tk);
 void schedule_election(struct ticket_config *tk, cmd_reason_t reason);
 
 int is_manual(struct ticket_config *tk);
-int number_sites_marked_as_granted(struct ticket_config *tk);
 
 int check_attr_prereq(struct ticket_config *tk, grant_type_e grant_type);
 

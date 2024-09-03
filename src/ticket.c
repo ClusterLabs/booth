@@ -382,6 +382,18 @@ int do_revoke_ticket(struct ticket_config *tk)
 	}
 }
 
+static int number_sites_marked_as_granted(struct ticket_config *tk)
+{
+	int i, result = 0;
+	struct booth_site *ignored __attribute__((unused));
+
+	_FOREACH_NODE(i, ignored) {
+		result += tk->sites_where_granted[i];
+	}
+
+	return result;
+}
+
 
 int list_ticket(char **pdata, unsigned int *len)
 {
@@ -1356,20 +1368,6 @@ int is_manual(struct ticket_config *tk)
 {
 	return (tk->mode == TICKET_MODE_MANUAL) ? 1 : 0;
 }
-
-int number_sites_marked_as_granted(struct ticket_config *tk)
-{
-	int i, result = 0;
-	struct booth_site *ignored __attribute__((unused));
-
-	_FOREACH_NODE(i, ignored) {
-		result += tk->sites_where_granted[i];
-	}
-
-	return result;
-}
-
-
 
 /* Given a state (in host byte order), return a human-readable (char*).
  * An array is used so that multiple states can be printed in a single printf(). */
