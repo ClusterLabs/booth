@@ -106,7 +106,6 @@ extern int TIME_RES;
 
 void save_committed_tkt(struct ticket_config *tk);
 void disown_ticket(struct ticket_config *tk);
-int disown_if_expired(struct ticket_config *tk);
 
 /**
  * @internal
@@ -151,9 +150,6 @@ int setup_ticket(struct booth_config *conf);
 
 int check_max_len_valid(const char *s, int max);
 
-int do_grant_ticket(struct ticket_config *ticket, int options);
-int do_revoke_ticket(struct ticket_config *tk);
-
 /**
  * @internal
  * Find a ticket based on a given name
@@ -168,9 +164,6 @@ int find_ticket_by_name(struct booth_config *conf,
 			const char *ticket, struct ticket_config **found);
 
 void set_ticket_wakeup(struct ticket_config *tk);
-int postpone_ticket_processing(struct ticket_config *tk);
-
-int acquire_ticket(struct ticket_config *tk, cmd_reason_t reason);
 
 /**
  * @internal

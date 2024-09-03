@@ -289,7 +289,7 @@ static int do_ext_prog(struct ticket_config *tk,
  * to start the program, and then to get the result and start
  * elections.
  */
-int acquire_ticket(struct ticket_config *tk, cmd_reason_t reason)
+static int acquire_ticket(struct ticket_config *tk, cmd_reason_t reason)
 {
 	int rv;
 
@@ -319,7 +319,7 @@ int acquire_ticket(struct ticket_config *tk, cmd_reason_t reason)
 
 /** Try to get the ticket for the local site.
  * */
-int do_grant_ticket(struct ticket_config *tk, int options)
+static int do_grant_ticket(struct ticket_config *tk, int options)
 {
 	int rv;
 
@@ -370,7 +370,7 @@ static void start_revoke_ticket(struct ticket_config *tk)
 
 /** Ticket revoke.
  * Only to be started from the leader. */
-int do_revoke_ticket(struct ticket_config *tk)
+static int do_revoke_ticket(struct ticket_config *tk)
 {
 	if (tk->acks_expected) {
 		tk_log_info("delay ticket revoke until the current operation finishes");
@@ -520,17 +520,6 @@ void disown_ticket(struct ticket_config *tk)
 	set_leader(tk, NULL);
 	tk->is_granted = 0;
 	get_time(&tk->term_expires);
-}
-
-int disown_if_expired(struct ticket_config *tk)
-{
-	if (is_past(&tk->term_expires) ||
-			!tk->leader) {
-		disown_ticket(tk);
-		return 1;
-	}
-
-	return 0;
 }
 
 void reset_ticket(struct ticket_config *tk)
@@ -946,7 +935,7 @@ just_resend:
 	resend_msg(conf, tk);
 }
 
-int postpone_ticket_processing(struct ticket_config *tk)
+static int postpone_ticket_processing(struct ticket_config *tk)
 {
 	extern timetype start_time;
 
