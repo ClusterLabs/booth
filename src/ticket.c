@@ -119,8 +119,8 @@ static int ticket_dangerous(struct ticket_config *tk)
 	if (is_past(&tk->delay_commit) || all_sites_replied(tk)) {
 		if (tk->leader == local) {
 			tk_log_info("%s, committing to CIB",
-				is_past(&tk->delay_commit) ?
-				"ticket delay expired" : "all sites replied");
+				    is_past(&tk->delay_commit) ?
+				    "ticket delay expired" : "all sites replied");
 		}
 		time_reset(&tk->delay_commit);
 		no_log_delay_msg = 0;
@@ -152,7 +152,7 @@ int ticket_write(struct ticket_config *tk)
 	if (tk->leader == local) {
 		if (tk->state != ST_LEADER) {
 			tk_log_info("ticket state not yet consistent, "
-				"delaying ticket grant to CIB");
+				    "delaying ticket grant to CIB");
 			return 1;
 		}
 		pcmk_handler.grant_ticket(tk);
@@ -340,8 +340,8 @@ static int do_grant_ticket(struct ticket_config *tk, int options)
 			 * The ticket will be granted and may end up being granted
 			 * on multiple sites */
 			tk_log_warn("manual ticket forced to be granted! be aware that "
-					"you may end up having two sites holding the same manual "
-					"ticket! revoke the ticket from the unnecessary site!");
+				    "you may end up having two sites holding the same manual "
+				    "ticket! revoke the ticket from the unnecessary site!");
 		} else {
 			return RLT_OVERGRANT;
 		}
@@ -351,8 +351,8 @@ static int do_grant_ticket(struct ticket_config *tk, int options)
 
 	if (options & OPT_IMMEDIATE) {
 		tk_log_warn("granting ticket immediately! If there are "
-				"unreachable sites, _hope_ you are sure that they don't "
-				"have the ticket!");
+			    "unreachable sites, _hope_ you are sure that they don't "
+			    "have the ticket!");
 		time_reset(&tk->delay_commit);
 	}
 
@@ -440,41 +440,34 @@ static int list_ticket(struct booth_config *conf, char **pdata, unsigned int *le
 			/* Manual tickets doesn't have term_expires defined */
 			ts = wall_ts(&tk->term_expires);
 			strftime(timeout_str, sizeof(timeout_str), "%F %T",
-					localtime(&ts));
+				 localtime(&ts));
 		} else {
 			strcpy(timeout_str, "INF");
 		}
 
-		if (tk->leader == local && is_time_set(&tk->delay_commit)
-				&& !is_past(&tk->delay_commit)) {
+		if (tk->leader == local && is_time_set(&tk->delay_commit) &&
+		    !is_past(&tk->delay_commit)) {
 			ts = wall_ts(&tk->delay_commit);
 			strcpy(pending_str, " (commit pending until ");
 			strftime(pending_str + strlen(" (commit pending until "),
-					sizeof(pending_str) - strlen(" (commit pending until ") - 1,
-					"%F %T", localtime(&ts));
+				 sizeof(pending_str) - strlen(" (commit pending until ") - 1,
+				 "%F %T", localtime(&ts));
 			strcat(pending_str, ")");
 		} else {
 			*pending_str = '\0';
 		}
 
-		cp += snprintf(cp,
-				alloc - (cp - data),
-				"ticket: %s, leader: %s",
-				tk->name,
-				ticket_leader_string(tk));
+		cp += snprintf(cp, alloc - (cp - data),
+			       "ticket: %s, leader: %s", tk->name,
+			       ticket_leader_string(tk));
 
 		if (is_owned(tk)) {
-			cp += snprintf(cp,
-					alloc - (cp - data),
-					", expires: %s%s",
-					timeout_str,
-					pending_str);
+			cp += snprintf(cp, alloc - (cp - data),
+				       ", expires: %s%s", timeout_str, pending_str);
 		}
 
 		if (is_manual(tk)) {
-			cp += snprintf(cp,
-					alloc - (cp - data),
-					" [manual mode]");
+			cp += snprintf(cp, alloc - (cp - data), " [manual mode]");
 		}
 
 		cp += snprintf(cp, alloc - (cp - data), "\n");
@@ -489,29 +482,23 @@ static int list_ticket(struct booth_config *conf, char **pdata, unsigned int *le
 		multiple_grant_warning_length = number_sites_marked_as_granted(conf, tk);
 
 		if (multiple_grant_warning_length > 1) {
-			cp += snprintf(cp,
-					alloc - (cp - data),
-					"\nWARNING: The ticket %s is granted to multiple sites: ",  // ~55 characters
-					tk->name);
+			cp += snprintf(cp, alloc - (cp - data),
+				       "\nWARNING: The ticket %s is granted to multiple sites: ",  // ~55 characters
+				       tk->name);
 
 			FOREACH_NODE(conf, site_index, site) {
 				if (tk->sites_where_granted[site_index] > 0) {
-					cp += snprintf(cp,
-						alloc - (cp - data),
-						"%s",
-						site_string(site));
+					cp += snprintf(cp, alloc - (cp - data),
+						       "%s", site_string(site));
 
 					if (--multiple_grant_warning_length > 0) {
-						cp += snprintf(cp,
-							alloc - (cp - data),
-							", ");
+						cp += snprintf(cp, alloc - (cp - data), ", ");
 					}
 				}
 			}
 
-			cp += snprintf(cp,
-				alloc - (cp - data),
-				". Revoke the ticket from the faulty sites.\n");  // ~45 characters
+			cp += snprintf(cp, alloc - (cp - data),
+				       ". Revoke the ticket from the faulty sites.\n");  // ~45 characters
 		}
 	}
 
@@ -560,22 +547,22 @@ static void log_reacquire_reason(struct ticket_config *tk)
 		where_granted = "granted here";
 	} else {
 		snprintf(buff, sizeof(buff), "granted to %s",
-			site_string(tk->leader));
+			 site_string(tk->leader));
 		where_granted = buff;
 	}
 
 	if (!valid) {
-		tk_log_warn("%s, but not valid "
-			"anymore (will try to reacquire)", where_granted);
+		tk_log_warn("%s, but not valid anymore (will try to reacquire)",
+			    where_granted);
 	}
 	if (tk->is_granted && tk->leader != local) {
 		if (tk->leader && tk->leader != no_leader) {
 			tk_log_error("granted here, but also %s, "
-				"that's really too bad (will try to reacquire)",
-				where_granted);
+				     "that's really too bad (will try to reacquire)",
+				     where_granted);
 		} else {
 			tk_log_warn("granted here, but we're "
-				"not recorded as the grantee (will try to reacquire)");
+				    "not recorded as the grantee (will try to reacquire)");
 		}
 	}
 }
@@ -583,9 +570,8 @@ static void log_reacquire_reason(struct ticket_config *tk)
 void update_ticket_state(struct ticket_config *tk, struct booth_site *sender)
 {
 	if (tk->state == ST_CANDIDATE) {
-		tk_log_info("learned from %s about "
-				"newer ticket, stopping elections",
-				site_string(sender));
+		tk_log_info("learned from %s about newer ticket, stopping elections",
+			    site_string(sender));
 		/* there could be rejects coming from others; don't log
 		 * warnings unnecessarily */
 		tk->expect_more_rejects = 1;
@@ -596,11 +582,10 @@ void update_ticket_state(struct ticket_config *tk, struct booth_site *sender)
 		if (sender == tk->leader && term_time_left(tk)) {
 			if (tk->is_granted) {
 				tk_log_warn("ticket was granted here, "
-						"but it's live at %s (revoking here)",
-						site_string(sender));
+					    "but it's live at %s (revoking here)",
+					    site_string(sender));
 			} else {
-				tk_log_info("ticket live at %s",
-						site_string(sender));
+				tk_log_info("ticket live at %s", site_string(sender));
 			}
 			disown_ticket(tk);
 			ticket_write(tk);
@@ -623,11 +608,11 @@ void update_ticket_state(struct ticket_config *tk, struct booth_site *sender)
 		} else {
 			if (sender) {
 				tk_log_info("ticket granted to %s (says %s)",
-					site_string(tk->leader),
-					tk->leader == sender ? "they" : site_string(sender));
+					    site_string(tk->leader),
+ 					    tk->leader == sender ? "they" : site_string(sender));
 			} else {
 				tk_log_info("ticket granted to %s (from CIB)",
-					site_string(tk->leader));
+					    site_string(tk->leader));
 			}
 			set_state(tk, ST_FOLLOWER);
 			/* just make sure that we check the ticket soon */
@@ -697,8 +682,7 @@ int process_client_request(struct booth_config *conf, struct client *req_client,
 	msg = (struct boothc_ticket_msg *)buf;
 	cmd = ntohl(msg->header.cmd);
 	if (!check_ticket(conf, msg->ticket.id, &tk)) {
-		log_warn("client referenced unknown ticket %s",
-				msg->ticket.id);
+		log_warn("client referenced unknown ticket %s", msg->ticket.id);
 		rv = RLT_INVALID_ARG;
 		goto reply_now;
 	}
@@ -707,22 +691,21 @@ int process_client_request(struct booth_config *conf, struct client *req_client,
 	 * an already granted non-manual ticket */
 	if ((!is_manual(tk) && (cmd == CMD_GRANT) && is_owned(tk))) {
 		log_warn("client wants to grant an (already granted!) ticket %s",
-				msg->ticket.id);
+			 msg->ticket.id);
 
 		rv = RLT_OVERGRANT;
 		goto reply_now;
 	}
 
 	if ((cmd == CMD_REVOKE) && !is_owned(tk)) {
-		log_info("client wants to revoke a free ticket %s",
-				msg->ticket.id);
+		log_info("client wants to revoke a free ticket %s", msg->ticket.id);
 		rv = RLT_TICKET_IDLE;
 		goto reply_now;
 	}
 
 	if ((cmd == CMD_REVOKE) && tk->leader != local) {
 		tk_log_info("not granted here, redirect to %s",
-				ticket_leader_string(tk));
+			    ticket_leader_string(tk));
 		rv = RLT_REDIRECT;
 		goto reply_now;
 	}
@@ -738,7 +721,7 @@ int process_client_request(struct booth_config *conf, struct client *req_client,
 		 * request for further processing */
 		add_req(tk, req_client, msg);
 		tk_log_debug("queue request %s for client %d",
-			state_to_string(cmd), req_client->fd);
+			     state_to_string(cmd), req_client->fd);
 		rc = 0; /* we're not yet done with the message */
 	}
 
@@ -763,11 +746,11 @@ int notify_client(struct ticket_config *tk, int client_fd,
 	ci = find_client_by_fd(client_fd);
 	if (ci < 0) {
 		tk_log_info("client %d (request %s) left before being notified",
-			client_fd, state_to_string(cmd));
+			    client_fd, state_to_string(cmd));
 		return 0;
 	}
 	tk_log_debug("notifying client %d (request %s)",
-		client_fd, state_to_string(cmd));
+		     client_fd, state_to_string(cmd));
 	init_ticket_msg(&omsg, CL_RESULT, 0, rv, 0, tk);
 	rc = send_client_msg(client_fd, &omsg);
 
@@ -780,10 +763,10 @@ int notify_client(struct ticket_config *tk, int client_fd,
 		 * the client */
 		if (rc) {
 			tk_log_debug("failed to notify client %d (request %s)",
-				client_fd, state_to_string(cmd));
+				     client_fd, state_to_string(cmd));
 		} else {
 			tk_log_debug("client %d (request %s) got final notification",
-				client_fd, state_to_string(cmd));
+				     client_fd, state_to_string(cmd));
 		}
 		req_client = clients + ci;
 		deadfn = req_client->deadfn;
@@ -802,9 +785,9 @@ int ticket_broadcast(struct ticket_config *tk, cmd_request_t cmd,
 
 	init_ticket_msg(&msg, cmd, 0, res, reason, tk);
 	tk_log_debug("broadcasting '%s' (term=%d, valid=%d)",
-			state_to_string(cmd),
-			ntohl(msg.ticket.term),
-			msg_term_time(&msg));
+		     state_to_string(cmd),
+		     ntohl(msg.ticket.term),
+		     msg_term_time(&msg));
 
 	tk->last_request = cmd;
 	if (expected_reply) {
@@ -877,11 +860,11 @@ static void log_lost_servers(struct booth_config *conf, struct ticket_config *tk
 	FOREACH_NODE(conf, i, n) {
 		if (!(tk->acks_received & n->bitmask)) {
 			tk_log_warn("%s %s didn't acknowledge our %s, "
-			"will retry %d times",
-			(n->type == ARBITRATOR ? "arbitrator" : "site"),
-			site_string(n),
-			state_to_string(tk->last_request),
-			tk->retries);
+				    "will retry %d times",
+				    (n->type == ARBITRATOR ? "arbitrator" : "site"),
+				    site_string(n),
+				    state_to_string(tk->last_request),
+				    tk->retries);
 		}
 	}
 }
@@ -898,9 +881,8 @@ static void resend_msg(struct booth_config *conf, struct ticket_config *tk)
 			if (!(tk->acks_received & n->bitmask)) {
 				n->resend_cnt++;
 				tk_log_debug("resending %s to %s",
-						state_to_string(tk->last_request),
-						site_string(n)
-						);
+					     state_to_string(tk->last_request),
+					     site_string(n));
 				send_msg(tk->last_request, tk, n, NULL);
 			}
 		}
@@ -922,8 +904,8 @@ static void handle_resends(struct booth_config *conf, struct ticket_config *tk)
 	/* try to reach some sites again if we just stepped down */
 	if (tk->last_request == OP_VOTE_FOR) {
 		tk_log_warn("no answers to our VtFr request to step down (try #%d), "
-		"we are alone",
-		tk->retry_number);
+			    "we are alone",
+			    tk->retry_number);
 		goto just_resend;
 	}
 
@@ -931,13 +913,12 @@ static void handle_resends(struct booth_config *conf, struct ticket_config *tk)
 		ack_cnt = count_bits(tk->acks_received) - 1;
 		if (!ack_cnt) {
 			tk_log_warn("no answers to our request (try #%d), "
-			"we are alone",
-			tk->retry_number);
+				    "we are alone",
+				    tk->retry_number);
 		} else {
 			tk_log_warn("not enough answers to our request (try #%d): "
-			"only got %d answers",
-			tk->retry_number,
-			ack_cnt);
+				    "only got %d answers",
+				    tk->retry_number, ack_cnt);
 		}
 	} else {
 		log_lost_servers(conf, tk);
@@ -951,8 +932,7 @@ static int postpone_ticket_processing(struct ticket_config *tk)
 {
 	extern timetype start_time;
 
-	return tk->start_postpone &&
-		(-time_left(&start_time) < tk->timeout);
+	return tk->start_postpone && (-time_left(&start_time) < tk->timeout);
 }
 
 #define has_extprog_exited(tk) ((tk)->clu_test.progstate == EXTPROG_EXITED)
@@ -1046,8 +1026,8 @@ static void next_action(struct booth_config *conf, struct ticket_config *tk)
 		if (!is_manual(tk)) {
 			/* leader/ticket lost? and we didn't vote yet */
 			tk_log_debug("leader: %s, voted_for: %s",
-					site_string(tk->leader),
-					site_string(tk->voted_for));
+				     site_string(tk->leader),
+				     site_string(tk->voted_for));
 			if (!tk->leader) {
 				if (!tk->voted_for || !tk->in_election) {
 					disown_ticket(tk);
@@ -1111,7 +1091,7 @@ static void ticket_cron(struct booth_config *conf, struct ticket_config *tk)
 	/* don't process the tickets too early after start */
 	if (postpone_ticket_processing(tk)) {
 		tk_log_debug("ticket processing postponed (start_postpone=%d)",
-				tk->start_postpone);
+			     tk->start_postpone);
 		/* but run again soon */
 		ticket_activate_timeout(tk);
 		return;
@@ -1136,9 +1116,8 @@ static void ticket_cron(struct booth_config *conf, struct ticket_config *tk)
 	 * For automatic tickets, losing the ticket must happen
 	 * in _every_ state.
 	 */
-	if ((!is_manual(tk)) &&
-			is_owned(tk) && is_time_set(&tk->term_expires)
-			&& is_past(&tk->term_expires)) {
+	if (!is_manual(tk) && is_owned(tk) && is_time_set(&tk->term_expires) &&
+	    is_past(&tk->term_expires)) {
 		ticket_lost(tk);
 		goto out;
 	}
@@ -1161,7 +1140,7 @@ void process_tickets(struct booth_config *conf)
 
 	FOREACH_TICKET(conf, i, tk) {
 		if (!has_extprog_exited(tk) &&
-				is_time_set(&tk->next_cron) && !is_past(&tk->next_cron)) {
+		    is_time_set(&tk->next_cron) && !is_past(&tk->next_cron)) {
 			continue;
 		}
 
@@ -1186,14 +1165,11 @@ void tickets_log_info(struct booth_config *conf)
 
 	FOREACH_TICKET(conf, i, tk) {
 		ts = wall_ts(&tk->term_expires);
-		tk_log_info("state '%s' "
-				"term %d "
-				"leader %s "
-				"expires %-24.24s",
-				state_to_string(tk->state),
-				tk->current_term,
-				ticket_leader_string(tk),
-				ctime(&ts));
+		tk_log_info("state '%s' term %d leader %s expires %-24.24s",
+			    state_to_string(tk->state),
+			    tk->current_term,
+			    ticket_leader_string(tk),
+			    ctime(&ts));
 	}
 }
 
@@ -1207,8 +1183,7 @@ static void update_acks(struct ticket_config *tk, struct booth_site *sender,
 	cmd = ntohl(msg->header.cmd);
 	req = ntohl(msg->header.request);
 	if (req != tk->last_request ||
-			(tk->acks_expected != cmd &&
-			tk->acks_expected != OP_REJECTED)) {
+	    (tk->acks_expected != cmd && tk->acks_expected != OP_REJECTED)) {
 		return;
 	}
 
@@ -1216,9 +1191,8 @@ static void update_acks(struct ticket_config *tk, struct booth_site *sender,
 	tk->acks_received |= sender->bitmask;
 
 	if (all_replied(tk) ||
-			/* we just stepped down, need only one site to start
-			 * elections */
-			(cmd == OP_REQ_VOTE && tk->last_request == OP_VOTE_FOR)) {
+	    /* we just stepped down, need only one site to start elections */
+	    (cmd == OP_REQ_VOTE && tk->last_request == OP_VOTE_FOR)) {
 		no_resends(tk);
 		tk->start_postpone = 0;
 		set_ticket_wakeup(tk);
@@ -1237,7 +1211,7 @@ int ticket_recv(struct booth_config *conf, void *buf, struct booth_site *source)
 
 	if (!check_ticket(conf, msg->ticket.id, &tk)) {
 		log_warn("got invalid ticket name %s from %s",
-				msg->ticket.id, site_string(source));
+			 msg->ticket.id, site_string(source));
 		source->invalid_cnt++;
 		return -EINVAL;
 	}
@@ -1404,8 +1378,7 @@ int send_reject(struct booth_site *dest, struct ticket_config *tk,
 	int req = ntohl(in_msg->header.cmd);
 	struct boothc_ticket_msg msg;
 
-	tk_log_debug("sending reject to %s",
-			site_string(dest));
+	tk_log_debug("sending reject to %s", site_string(dest));
 	init_ticket_msg(&msg, OP_REJECTED, req, code, 0, tk);
 	return booth_udp_send_auth(dest, &msg, sendmsglen(&msg));
 }
@@ -1425,8 +1398,7 @@ int send_msg(int cmd, struct ticket_config *tk, struct booth_site *dest,
 		if (tk->state == ST_CANDIDATE && tk->last_valid_tk) {
 			valid_tk = tk->last_valid_tk;
 		}
-		tk_log_info("sending status to %s",
-				site_string(dest));
+		tk_log_info("sending status to %s", site_string(dest));
 	}
 
 	if (in_msg) {
