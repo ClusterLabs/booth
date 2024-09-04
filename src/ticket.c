@@ -426,7 +426,7 @@ static int list_ticket(struct booth_config *conf, char **pdata)
 	}
 
 	FOREACH_TICKET(conf, i, tk) {
-		if ((!is_manual(tk)) && is_time_set(&tk->term_expires)) {
+		if (!is_manual(tk) && is_time_set(&tk->term_expires)) {
 			/* Manual tickets doesn't have term_expires defined */
 			ts = wall_ts(&tk->term_expires);
 			strftime(timeout_str, sizeof(timeout_str), "%F %T",
@@ -691,7 +691,7 @@ int process_client_request(struct booth_config *conf, struct client *req_client,
 
 	/* Perform the initial check before granting
 	 * an already granted non-manual ticket */
-	if ((!is_manual(tk) && (cmd == CMD_GRANT) && is_owned(tk))) {
+	if (!is_manual(tk) && cmd == CMD_GRANT && is_owned(tk)) {
 		log_warn("client wants to grant an (already granted!) ticket %s",
 			 msg->ticket.id);
 
@@ -699,13 +699,13 @@ int process_client_request(struct booth_config *conf, struct client *req_client,
 		goto reply_now;
 	}
 
-	if ((cmd == CMD_REVOKE) && !is_owned(tk)) {
+	if (cmd == CMD_REVOKE && !is_owned(tk)) {
 		log_info("client wants to revoke a free ticket %s", msg->ticket.id);
 		rv = RLT_TICKET_IDLE;
 		goto reply_now;
 	}
 
-	if ((cmd == CMD_REVOKE) && tk->leader != local) {
+	if (cmd == CMD_REVOKE && tk->leader != local) {
 		tk_log_info("not granted here, redirect to %s",
 			    ticket_leader_string(tk));
 		rv = RLT_REDIRECT;
@@ -756,7 +756,7 @@ int notify_client(struct ticket_config *tk, int client_fd,
 	init_ticket_msg(&omsg, CL_RESULT, 0, rv, 0, tk);
 	rc = send_client_msg(client_fd, &omsg);
 
-	if (rc == 0 && ((rv == RLT_MORE) ||
+	if (rc == 0 && (rv == RLT_MORE ||
 			(rv == RLT_CIB_PENDING && (options & OPT_WAIT_COMMIT)))) {
 		/* more to do here, keep the request */
 		return 1;
