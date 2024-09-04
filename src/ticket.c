@@ -180,8 +180,7 @@ void save_committed_tkt(struct ticket_config *tk)
 }
 
 
-static void ext_prog_failed(struct ticket_config *tk,
-		int start_election)
+static void ext_prog_failed(struct ticket_config *tk, int start_election)
 {
 	if (!is_manual(tk)) {
 		/* Give it to somebody else.
@@ -255,8 +254,7 @@ fail:
  * != 0: executing program failed (or some other failure)
  */
 
-static int do_ext_prog(struct ticket_config *tk,
-		int start_election)
+static int do_ext_prog(struct ticket_config *tk, int start_election)
 {
 	int rv = 0;
 
@@ -753,7 +751,7 @@ reply_now:
 }
 
 int notify_client(struct ticket_config *tk, int client_fd,
-    struct boothc_ticket_msg *msg)
+		  struct boothc_ticket_msg *msg)
 {
 	struct boothc_ticket_msg omsg;
 	void (*deadfn) (int ci);
@@ -798,9 +796,9 @@ int notify_client(struct ticket_config *tk, int client_fd,
 	}
 }
 
-int ticket_broadcast(struct ticket_config *tk,
-		cmd_request_t cmd, cmd_request_t expected_reply,
-		cmd_result_t res, cmd_reason_t reason)
+int ticket_broadcast(struct ticket_config *tk, cmd_request_t cmd,
+		     cmd_request_t expected_reply, cmd_result_t res,
+		     cmd_reason_t reason)
 {
 	struct boothc_ticket_msg msg;
 
@@ -1202,12 +1200,8 @@ void tickets_log_info(struct booth_config *conf)
 }
 
 
-static void update_acks(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-	       )
+static void update_acks(struct ticket_config *tk, struct booth_site *sender,
+			struct booth_site *leader, struct boothc_ticket_msg *msg)
 {
 	uint32_t cmd;
 	uint32_t req;
@@ -1418,12 +1412,8 @@ int send_reject(struct booth_site *dest, struct ticket_config *tk,
 	return booth_udp_send_auth(dest, &msg, sendmsglen(&msg));
 }
 
-int send_msg (
-		int cmd,
-		struct ticket_config *tk,
-		struct booth_site *dest,
-		struct boothc_ticket_msg *in_msg
-	       )
+int send_msg(int cmd, struct ticket_config *tk, struct booth_site *dest,
+	     struct boothc_ticket_msg *in_msg)
 {
 	int req = 0;
 	struct ticket_config *valid_tk = tk;
