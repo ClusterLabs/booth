@@ -51,9 +51,11 @@ extern int TIME_RES;
 int check_max_len_valid(const char *s, int max)
 {
 	int i;
-	for(i=0; i<max; i++)
-		if (s[i] == 0)
+	for(i=0; i<max; i++) {
+		if (s[i] == 0) {
 			return 1;
+		}
+	}
 	return 0;
 }
 
@@ -112,8 +114,9 @@ static int ticket_dangerous(struct ticket_config *tk)
 	 */
 	static int no_log_delay_msg;
 
-	if (!is_time_set(&tk->delay_commit))
+	if (!is_time_set(&tk->delay_commit)) {
 		return 0;
+	}
 
 	if (is_past(&tk->delay_commit) || all_sites_replied(tk)) {
 		if (tk->leader == local) {
@@ -140,11 +143,13 @@ static int ticket_dangerous(struct ticket_config *tk)
 
 int ticket_write(struct ticket_config *tk)
 {
-	if (local->type != SITE)
+	if (local->type != SITE) {
 		return -EINVAL;
+	}
 
-	if (ticket_dangerous(tk))
+	if (ticket_dangerous(tk)) {
 		return 1;
+	}
 
 	if (tk->leader == local) {
 		if (tk->state != ST_LEADER) {
@@ -215,17 +220,20 @@ int check_attr_prereq(struct ticket_config *tk, grant_type_e grant_type)
 	for (el = g_list_first(tk->attr_prereqs); el; el = g_list_next(el))
 	{
 		ap = (struct attr_prereq *)el->data;
-		if (ap->grant_type != grant_type)
+		if (ap->grant_type != grant_type) {
 			continue;
+		}
 		geo_ap = (struct geo_attr *)g_hash_table_lookup(tk->attr, ap->attr_name);
 		switch(ap->op) {
 		case ATTR_OP_EQ:
-			if (!attr_found(geo_ap, ap))
+			if (!attr_found(geo_ap, ap)) {
 				goto fail;
+			}
 			break;
 		case ATTR_OP_NE:
-			if (attr_found(geo_ap, ap))
+			if (attr_found(geo_ap, ap)) {
 				goto fail;
+			}
 			break;
 		default:
 			break;
@@ -252,8 +260,9 @@ static int do_ext_prog(struct ticket_config *tk,
 {
 	int rv = 0;
 
-	if (!tk_test.path)
+	if (!tk_test.path) {
 		return 0;
+	}
 
 	switch(tk_test.progstate) {
 	case EXTPROG_IDLE:
@@ -293,8 +302,9 @@ static int acquire_ticket(struct ticket_config *tk, cmd_reason_t reason)
 {
 	int rv;
 
-	if (reason == OR_ADMIN && check_attr_prereq(tk, GRANT_MANUAL))
+	if (reason == OR_ADMIN && check_attr_prereq(tk, GRANT_MANUAL)) {
 		return RLT_ATTR_PREREQ;
+	}
 
 	switch(do_ext_prog(tk, 0)) {
 	case 0:
@@ -325,8 +335,9 @@ static int do_grant_ticket(struct ticket_config *tk, int options)
 
 	tk_log_info("granting ticket");
 
-	if (tk->leader == local)
+	if (tk->leader == local) {
 		return RLT_SUCCESS;
+	}
 	if (is_owned(tk)) {
 		if (is_manual(tk) && (options & OPT_IMMEDIATE)) {
 			/* -F flag has been used while granting a manual ticket.
@@ -607,19 +618,21 @@ void update_ticket_state(struct ticket_config *tk, struct booth_site *sender)
 		}
 	} else {
 		if (!tk->leader || tk->leader == no_leader) {
-			if (sender)
+			if (sender) {
 				tk_log_info("ticket is not granted");
-			else
+			} else {
 				tk_log_info("ticket is not granted (from CIB)");
+			}
 			set_state(tk, ST_INIT);
 		} else {
-			if (sender)
+			if (sender) {
 				tk_log_info("ticket granted to %s (says %s)",
 					site_string(tk->leader),
 					tk->leader == sender ? "they" : site_string(sender));
-			else
+			} else {
 				tk_log_info("ticket granted to %s (from CIB)",
 					site_string(tk->leader));
+			}
 			set_state(tk, ST_FOLLOWER);
 			/* just make sure that we check the ticket soon */
 			set_next_state(tk, ST_FOLLOWER);
@@ -661,15 +674,17 @@ int ticket_answer_list(struct booth_config *conf, int fd)
 	struct boothc_hdr_msg hdr;
 
 	rv = list_ticket(conf, &data, &olen);
-	if (rv < 0)
+	if (rv < 0) {
 		goto out;
+	}
 
 	init_header(&hdr.header, CL_LIST, 0, 0, RLT_SUCCESS, 0, sizeof(hdr) + olen);
 	rv = send_header_plus(fd, &hdr, data, olen);
 
 out:
-	if (data)
+	if (data) {
 		free(data);
+	}
 	return rv;
 }
 
@@ -813,8 +828,9 @@ int leader_update_ticket(struct ticket_config *tk)
 	int rv = 0, rv2;
 	timetype now;
 
-	if (tk->ticket_updated >= 2)
+	if (tk->ticket_updated >= 2) {
 		return 0;
+	}
 
 	/* for manual tickets, we don't set time expiration */
 	if (!is_manual(tk)) {
@@ -1200,8 +1216,9 @@ static void update_acks(
 	req = ntohl(msg->header.request);
 	if (req != tk->last_request ||
 			(tk->acks_expected != cmd &&
-			tk->acks_expected != OP_REJECTED))
+			tk->acks_expected != OP_REJECTED)) {
 		return;
+	}
 
 	/* got an ack! */
 	tk->acks_received |= sender->bitmask;
@@ -1350,8 +1367,9 @@ void set_ticket_wakeup(struct ticket_config *tk)
 
 void schedule_election(struct ticket_config *tk, cmd_reason_t reason)
 {
-	if (local->type != SITE)
+	if (local->type != SITE) {
 		return;
+	}
 
 	tk->election_reason = reason;
 	get_time(&tk->next_cron);
@@ -1374,8 +1392,9 @@ char *state_to_string(uint32_t state_ho)
 	static int current = 0;
 
 	current ++;
-	if (current >= sizeof(cache)/sizeof(cache[0]))
+	if (current >= sizeof(cache)/sizeof(cache[0])) {
 		current = 0;
+	}
 
 	cur = cache + current;
 
@@ -1422,8 +1441,9 @@ int send_msg (
 				site_string(dest));
 	}
 
-	if (in_msg)
+	if (in_msg) {
 		req = ntohl(in_msg->header.cmd);
+	}
 
 	init_ticket_msg(&msg, cmd, req, RLT_SUCCESS, 0, valid_tk);
 	return booth_udp_send_auth(dest, &msg, sendmsglen(&msg));
