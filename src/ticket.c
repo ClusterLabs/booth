@@ -68,13 +68,15 @@ int find_ticket_by_name(struct booth_config *conf, const char *ticket,
 	}
 
 	FOREACH_TICKET(conf, i, tk) {
-		if (!strncmp(tk->name, ticket, sizeof(tk->name))) {
-			if (found) {
-				*found = tk;
-			}
-
-			return 1;
+		if (strncmp(tk->name, ticket, sizeof(tk->name))) {
+			continue;
 		}
+
+		if (found) {
+			*found = tk;
+		}
+
+		return 1;
 	}
 
 	return 0;
@@ -184,24 +186,28 @@ static void ext_prog_failed(struct ticket_config *tk, int start_election)
 		/* Give it to somebody else.
 	 	 * Just send a VOTE_FOR message, so the
 		 * others can start elections. */
-		if (leader_and_valid(tk)) {
-			save_committed_tkt(tk);
-			reset_ticket(tk);
-			ticket_write(tk);	
-			if (start_election) {
-				ticket_broadcast(tk, OP_VOTE_FOR, OP_REQ_VOTE, RLT_SUCCESS, OR_LOCAL_FAIL);
-			}
+		if (!leader_and_valid(tk)) {
+			return;
+		}
+
+		save_committed_tkt(tk);
+		reset_ticket(tk);
+		ticket_write(tk);	
+		if (start_election) {
+			ticket_broadcast(tk, OP_VOTE_FOR, OP_REQ_VOTE, RLT_SUCCESS, OR_LOCAL_FAIL);
 		}
 	} else {
 		/* There is not much we can do now because
 		 * the manual ticket cannot be relocated.
 		 * Just warn the user. */
-		if (tk->leader == local) {
-			save_committed_tkt(tk);
-			reset_ticket(tk);
-			ticket_write(tk);	
-			log_error("external test failed on the specified machine, cannot acquire a manual ticket");
+		if (tk->leader != local) {
+			return;
 		}
+
+		save_committed_tkt(tk);
+		reset_ticket(tk);
+		ticket_write(tk);	
+		log_error("external test failed on the specified machine, cannot acquire a manual ticket");
 	}
 }
 
@@ -423,10 +429,12 @@ static int list_ticket(struct booth_config *conf, char **pdata, unsigned int *le
 	FOREACH_TICKET(conf, i, tk) {
 		multiple_grant_warning_length = number_sites_marked_as_granted(conf, tk);
 
-		if (multiple_grant_warning_length > 1) {
-			// 164: 55 + 45 + 2*number_of_multiple_sites + some margin
-			alloc += 164 + BOOTH_NAME_LEN * (1+multiple_grant_warning_length);
+		if (multiple_grant_warning_length <= 1) {
+			continue;
 		}
+
+		// 164: 55 + 45 + 2*number_of_multiple_sites + some margin
+		alloc += 164 + BOOTH_NAME_LEN * (1+multiple_grant_warning_length);
 	}
 
 	data = malloc(alloc);
@@ -481,25 +489,29 @@ static int list_ticket(struct booth_config *conf, char **pdata, unsigned int *le
 	FOREACH_TICKET(conf, i, tk) {
 		multiple_grant_warning_length = number_sites_marked_as_granted(conf, tk);
 
-		if (multiple_grant_warning_length > 1) {
-			cp += snprintf(cp, alloc - (cp - data),
-				       "\nWARNING: The ticket %s is granted to multiple sites: ",  // ~55 characters
-				       tk->name);
+		if (multiple_grant_warning_length <= 1) {
+			continue;
+		}
 
-			FOREACH_NODE(conf, site_index, site) {
-				if (tk->sites_where_granted[site_index] > 0) {
-					cp += snprintf(cp, alloc - (cp - data),
-						       "%s", site_string(site));
+		cp += snprintf(cp, alloc - (cp - data),
+			       "\nWARNING: The ticket %s is granted to multiple sites: ",  // ~55 characters
+			       tk->name);
 
-					if (--multiple_grant_warning_length > 0) {
-						cp += snprintf(cp, alloc - (cp - data), ", ");
-					}
-				}
+		FOREACH_NODE(conf, site_index, site) {
+			if (tk->sites_where_granted[site_index] <= 0) {
+				continue;
 			}
 
 			cp += snprintf(cp, alloc - (cp - data),
-				       ". Revoke the ticket from the faulty sites.\n");  // ~45 characters
+				       "%s", site_string(site));
+
+			if (--multiple_grant_warning_length > 0) {
+				cp += snprintf(cp, alloc - (cp - data), ", ");
+			}
 		}
+
+		cp += snprintf(cp, alloc - (cp - data),
+			       ". Revoke the ticket from the faulty sites.\n");  // ~45 characters
 	}
 
 	*pdata = data;
@@ -812,14 +824,12 @@ int leader_update_ticket(struct ticket_config *tk)
 	}
 
 	/* for manual tickets, we don't set time expiration */
-	if (!is_manual(tk)) {
-		if (tk->ticket_updated < 1) {
-			tk->ticket_updated = 1;
-			get_time(&now);
-			copy_time(&now, &tk->last_renewal);
-			set_future_time(&tk->term_expires, tk->term_duration);
-			rv = ticket_broadcast(tk, OP_UPDATE, OP_ACK, RLT_SUCCESS, 0);
-		}
+	if (!is_manual(tk) && tk->ticket_updated < 1) {
+		tk->ticket_updated = 1;
+		get_time(&now);
+		copy_time(&now, &tk->last_renewal);
+		set_future_time(&tk->term_expires, tk->term_duration);
+		rv = ticket_broadcast(tk, OP_UPDATE, OP_ACK, RLT_SUCCESS, 0);
 	}
 
 	if (tk->ticket_updated < 2) {
@@ -858,14 +868,15 @@ static void log_lost_servers(struct booth_config *conf, struct ticket_config *tk
 	}
 
 	FOREACH_NODE(conf, i, n) {
-		if (!(tk->acks_received & n->bitmask)) {
-			tk_log_warn("%s %s didn't acknowledge our %s, "
-				    "will retry %d times",
-				    (n->type == ARBITRATOR ? "arbitrator" : "site"),
-				    site_string(n),
-				    state_to_string(tk->last_request),
-				    tk->retries);
+		if (tk->acks_received & n->bitmask) {
+			continue;
 		}
+
+		tk_log_warn("%s %s didn't acknowledge our %s, "
+			    "will retry %d times",
+			    (n->type == ARBITRATOR ? "arbitrator" : "site"),
+			    site_string(n), state_to_string(tk->last_request),
+			    tk->retries);
 	}
 }
 
@@ -878,13 +889,15 @@ static void resend_msg(struct booth_config *conf, struct ticket_config *tk)
 		ticket_broadcast(tk, tk->last_request, 0, RLT_SUCCESS, 0);
 	} else {
 		FOREACH_NODE(conf, i, n) {
-			if (!(tk->acks_received & n->bitmask)) {
-				n->resend_cnt++;
-				tk_log_debug("resending %s to %s",
-					     state_to_string(tk->last_request),
-					     site_string(n));
-				send_msg(tk->last_request, tk, n, NULL);
+			if (tk->acks_received & n->bitmask) {
+				continue;
 			}
+
+			n->resend_cnt++;
+			tk_log_debug("resending %s to %s",
+				     state_to_string(tk->last_request),
+				     site_string(n));
+			send_msg(tk->last_request, tk, n, NULL);
 		}
 		ticket_activate_timeout(tk);
 	}
@@ -944,12 +957,14 @@ static void process_next_state(struct ticket_config *tk)
 	switch(tk->next_state) {
 	case ST_LEADER:
 		if (has_extprog_exited(tk)) {
-			if (tk->state != ST_LEADER) {
-				rv = acquire_ticket(tk, OR_ADMIN);
-				if (rv != 0) { /* external program failed */
-					tk->outcome = rv;
-					foreach_tkt_req(tk, notify_client);
-				}
+			if (tk->state == ST_LEADER) {
+				break;
+			}
+
+			rv = acquire_ticket(tk, OR_ADMIN);
+			if (rv != 0) { /* external program failed */
+				tk->outcome = rv;
+				foreach_tkt_req(tk, notify_client);
 			}
 		} else {
 			log_reacquire_reason(tk);
@@ -1028,18 +1043,21 @@ static void next_action(struct booth_config *conf, struct ticket_config *tk)
 			tk_log_debug("leader: %s, voted_for: %s",
 				     site_string(tk->leader),
 				     site_string(tk->voted_for));
-			if (!tk->leader) {
-				if (!tk->voted_for || !tk->in_election) {
-					disown_ticket(tk);
-					if (!new_election(tk, NULL, 1, OR_AGAIN)) {
-						ticket_activate_timeout(tk);
-					}
-				} else {
-					/* we should restart elections in case nothing
-					* happens in the meantime */
-					tk->in_election = 0;
+
+			if (tk->leader) {
+				break;
+			}
+
+			if (!tk->voted_for || !tk->in_election) {
+				disown_ticket(tk);
+				if (!new_election(tk, NULL, 1, OR_AGAIN)) {
 					ticket_activate_timeout(tk);
 				}
+			} else {
+				/* we should restart elections in case nothing
+				* happens in the meantime */
+				tk->in_election = 0;
+				ticket_activate_timeout(tk);
 			}
 		} else {
 			/* for manual tickets, also try to acquire ticket on grant
@@ -1072,12 +1090,10 @@ static void next_action(struct booth_config *conf, struct ticket_config *tk)
 			if (majority_of_bits(tk, tk->acks_received)) {
 				leader_update_ticket(tk);
 			}
-		} else {
+		} else if (!do_ext_prog(tk, 1)) {
 			/* this is ticket renewal, run local test */
-			if (!do_ext_prog(tk, 1)) {
-				ticket_broadcast(tk, OP_HEARTBEAT, OP_ACK, RLT_SUCCESS, 0);
-				tk->ticket_updated = 0;
-			}
+			ticket_broadcast(tk, OP_HEARTBEAT, OP_ACK, RLT_SUCCESS, 0);
+			tk->ticket_updated = 0;
 		}
 		break;
 
