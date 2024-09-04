@@ -409,40 +409,22 @@ static int number_sites_marked_as_granted(struct booth_config *conf,
 }
 
 
-static int list_ticket(struct booth_config *conf, char **pdata, unsigned int *len)
+static int list_ticket(struct booth_config *conf, char **pdata)
 {
+	GString *s = NULL;
 	struct ticket_config *tk;
 	struct booth_site *site;
 	char timeout_str[64];
-	char pending_str[64];
-	char *data, *cp;
+	char *pending_str = NULL;
 	int i, site_index;
-	size_t alloc;
 	time_t ts;
-	int multiple_grant_warning_length = 0;
 
-	*pdata = NULL;
-	*len = 0;
+	s = g_string_sized_new(BUFSIZ);
 
-	alloc = conf->ticket_count * (BOOTH_NAME_LEN * 2 + 128 + 16);
-
-	FOREACH_TICKET(conf, i, tk) {
-		multiple_grant_warning_length = number_sites_marked_as_granted(conf, tk);
-
-		if (multiple_grant_warning_length <= 1) {
-			continue;
-		}
-
-		// 164: 55 + 45 + 2*number_of_multiple_sites + some margin
-		alloc += 164 + BOOTH_NAME_LEN * (1+multiple_grant_warning_length);
-	}
-
-	data = malloc(alloc);
-	if (!data) {
+	if (s == NULL) {
 		return -ENOMEM;
 	}
 
-	cp = data;
 	FOREACH_TICKET(conf, i, tk) {
 		if ((!is_manual(tk)) && is_time_set(&tk->term_expires)) {
 			/* Manual tickets doesn't have term_expires defined */
@@ -455,67 +437,76 @@ static int list_ticket(struct booth_config *conf, char **pdata, unsigned int *le
 
 		if (tk->leader == local && is_time_set(&tk->delay_commit) &&
 		    !is_past(&tk->delay_commit)) {
+			char until_str[64];
+			int rc;
+
 			ts = wall_ts(&tk->delay_commit);
-			strcpy(pending_str, " (commit pending until ");
-			strftime(pending_str + strlen(" (commit pending until "),
-				 sizeof(pending_str) - strlen(" (commit pending until ") - 1,
-				 "%F %T", localtime(&ts));
-			strcat(pending_str, ")");
-		} else {
-			*pending_str = '\0';
+			strftime(until_str, sizeof(until_str), "%F %T",
+				 localtime(&ts));
+			rc = asprintf(&pending_str, " (commit pending until %s)",
+				      until_str);
+
+			if (rc < 0) {
+				g_string_free(s, TRUE);
+				return -ENOMEM;
+			}
 		}
 
-		cp += snprintf(cp, alloc - (cp - data),
-			       "ticket: %s, leader: %s", tk->name,
-			       ticket_leader_string(tk));
+		g_string_append_printf(s, "ticket: %s, leader: %s", tk->name,
+				       ticket_leader_string(tk));
 
 		if (is_owned(tk)) {
-			cp += snprintf(cp, alloc - (cp - data),
-				       ", expires: %s%s", timeout_str, pending_str);
+			g_string_append_printf(s, ", expires: %s", timeout_str);
+
+			if (pending_str != NULL) {
+				g_string_append(s, pending_str);
+			}
 		}
 
 		if (is_manual(tk)) {
-			cp += snprintf(cp, alloc - (cp - data), " [manual mode]");
+			g_string_append(s, " [manual mode]");
 		}
 
-		cp += snprintf(cp, alloc - (cp - data), "\n");
+		g_string_append(s, "\n");
 
-		if (alloc - (cp - data) <= 0) {
-			free(data);
-			return -ENOMEM;
+		if (pending_str != NULL) {
+			free(pending_str);
+			pending_str = NULL;
 		}
 	}
 
 	FOREACH_TICKET(conf, i, tk) {
-		multiple_grant_warning_length = number_sites_marked_as_granted(conf, tk);
+		int multiple_grant_warning_length = number_sites_marked_as_granted(conf, tk);
 
 		if (multiple_grant_warning_length <= 1) {
 			continue;
 		}
 
-		cp += snprintf(cp, alloc - (cp - data),
-			       "\nWARNING: The ticket %s is granted to multiple sites: ",  // ~55 characters
-			       tk->name);
+		g_string_append_printf(s, "\nWARNING: The ticket %s is granted to multiple sites: ",
+				       tk->name);
 
 		FOREACH_NODE(conf, site_index, site) {
 			if (tk->sites_where_granted[site_index] <= 0) {
 				continue;
 			}
 
-			cp += snprintf(cp, alloc - (cp - data),
-				       "%s", site_string(site));
+			g_string_append(s, site_string(site));
 
-			if (--multiple_grant_warning_length > 0) {
-				cp += snprintf(cp, alloc - (cp - data), ", ");
+			multiple_grant_warning_length--;
+			if (multiple_grant_warning_length > 0) {
+				g_string_append(s, ", ");
 			}
 		}
 
-		cp += snprintf(cp, alloc - (cp - data),
-			       ". Revoke the ticket from the faulty sites.\n");  // ~45 characters
+		g_string_append(s, ". Revoke the ticket from the faulty sites.\n");
 	}
 
-	*pdata = data;
-	*len = cp - data;
+	*pdata = strdup(s->str);
+	g_string_free(s, TRUE);
+
+	if (*pdata == NULL) {
+		return -ENOMEM;
+	}
 
 	return 0;
 }
@@ -661,21 +652,20 @@ int setup_ticket(struct booth_config *conf)
 
 int ticket_answer_list(struct booth_config *conf, int fd)
 {
-	char *data;
+	char *data = NULL;
 	int rv;
-	unsigned int olen;
 	struct boothc_hdr_msg hdr;
 
-	rv = list_ticket(conf, &data, &olen);
+	rv = list_ticket(conf, &data);
 	if (rv < 0) {
 		goto out;
 	}
 
-	init_header(&hdr.header, CL_LIST, 0, 0, RLT_SUCCESS, 0, sizeof(hdr) + olen);
-	rv = send_header_plus(fd, &hdr, data, olen);
+	init_header(&hdr.header, CL_LIST, 0, 0, RLT_SUCCESS, 0, sizeof(hdr) + strlen(data));
+	rv = send_header_plus(fd, &hdr, data, strlen(data));
 
 out:
-	if (data) {
+	if (data != NULL) {
 		free(data);
 	}
 	return rv;
