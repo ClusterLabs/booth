@@ -43,8 +43,6 @@
 #include "request.h"
 #include "manual.h"
 
-#define TK_LINE			256
-
 extern int TIME_RES;
 
 /* Untrusted input, must fit (incl. \0) in a buffer of max chars. */
