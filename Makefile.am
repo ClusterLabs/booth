@@ -119,9 +119,6 @@ uninstall-local:
 
 test: check
 
-lint:
-	for dir in src; do make -C $$dir lint; done
-
 clean-local:
 	rm -rf test/*.pyc test/__pycache__ test/runtests.py test/boothtestenv.py cov* $(SPEC)
 	-rm -rf booth-*.rpm $(TARFILE)
