@@ -8,10 +8,10 @@ AM_CPPFLAGS		= -I$(top_builddir)/include
 sbin_PROGRAMS		= boothd
 
 boothd_SOURCES	 	= config.c main.c raft.c ticket.c transport.c \
-			  pacemaker.c handler.c request.c attr.c manual.c
+			  pcmk.c handler.c request.c attr.c manual.c
 
 noinst_HEADERS		= \
-			  attr.h booth.h handler.h log.h pacemaker.h request.h timer.h \
+			  attr.h booth.h handler.h log.h pcmk.h request.h timer.h \
 			  auth.h config.h inline-fn.h manual.h raft.h ticket.h transport.h
 
 if BUILD_TIMER_C
