@@ -57,18 +57,22 @@ int check_max_len_valid(const char *s, int max)
 	return 0;
 }
 
-int find_ticket_by_name(const char *ticket, struct ticket_config **found)
+int find_ticket_by_name(struct booth_config *conf, const char *ticket,
+			struct ticket_config **found)
 {
 	struct ticket_config *tk;
 	int i;
 
-	if (found)
+	if (found) {
 		*found = NULL;
+	}
 
-	_FOREACH_TICKET(i, tk) {
+	FOREACH_TICKET(conf, i, tk) {
 		if (!strncmp(tk->name, ticket, sizeof(tk->name))) {
-			if (found)
+			if (found) {
 				*found = tk;
+			}
+
 			return 1;
 		}
 	}
@@ -76,16 +80,22 @@ int find_ticket_by_name(const char *ticket, struct ticket_config **found)
 	return 0;
 }
 
-int check_ticket(char *ticket, struct ticket_config **found)
+int check_ticket(struct booth_config *conf, char *ticket,
+		 struct ticket_config **found)
 {
-	if (found)
+	if (found) {
 		*found = NULL;
-	if (!booth_conf)
-		return 0;
+	}
 
-	if (!check_max_len_valid(ticket, sizeof(booth_conf->ticket[0].name)))
+	if (conf == NULL) {
 		return 0;
-	return find_ticket_by_name(ticket, found);
+	}
+
+	if (!check_max_len_valid(ticket, sizeof(conf->ticket[0].name))) {
+		return 0;
+	}
+
+	return find_ticket_by_name(conf, ticket, found);
 }
 
 /* is it safe to commit the grant?
@@ -279,7 +289,7 @@ static int do_ext_prog(struct ticket_config *tk,
  * to start the program, and then to get the result and start
  * elections.
  */
-int acquire_ticket(struct ticket_config *tk, cmd_reason_t reason)
+static int acquire_ticket(struct ticket_config *tk, cmd_reason_t reason)
 {
 	int rv;
 
@@ -309,7 +319,7 @@ int acquire_ticket(struct ticket_config *tk, cmd_reason_t reason)
 
 /** Try to get the ticket for the local site.
  * */
-int do_grant_ticket(struct ticket_config *tk, int options)
+static int do_grant_ticket(struct ticket_config *tk, int options)
 {
 	int rv;
 
@@ -360,7 +370,7 @@ static void start_revoke_ticket(struct ticket_config *tk)
 
 /** Ticket revoke.
  * Only to be started from the leader. */
-int do_revoke_ticket(struct ticket_config *tk)
+static int do_revoke_ticket(struct ticket_config *tk)
 {
 	if (tk->acks_expected) {
 		tk_log_info("delay ticket revoke until the current operation finishes");
@@ -372,8 +382,21 @@ int do_revoke_ticket(struct ticket_config *tk)
 	}
 }
 
+static int number_sites_marked_as_granted(struct booth_config *conf,
+					  struct ticket_config *tk)
+{
+	int i, result = 0;
+	struct booth_site *ignored __attribute__((unused));
 
-int list_ticket(char **pdata, unsigned int *len)
+	FOREACH_NODE(conf, i, ignored) {
+		result += tk->sites_where_granted[i];
+	}
+
+	return result;
+}
+
+
+static int list_ticket(struct booth_config *conf, char **pdata, unsigned int *len)
 {
 	struct ticket_config *tk;
 	struct booth_site *site;
@@ -388,10 +411,10 @@ int list_ticket(char **pdata, unsigned int *len)
 	*pdata = NULL;
 	*len = 0;
 
-	alloc = booth_conf->ticket_count * (BOOTH_NAME_LEN * 2 + 128 + 16);
+	alloc = conf->ticket_count * (BOOTH_NAME_LEN * 2 + 128 + 16);
 
-	_FOREACH_TICKET(i, tk) {
-		multiple_grant_warning_length = number_sites_marked_as_granted(tk);
+	FOREACH_TICKET(conf, i, tk) {
+		multiple_grant_warning_length = number_sites_marked_as_granted(conf, tk);
 
 		if (multiple_grant_warning_length > 1) {
 			// 164: 55 + 45 + 2*number_of_multiple_sites + some margin
@@ -400,18 +423,20 @@ int list_ticket(char **pdata, unsigned int *len)
 	}
 
 	data = malloc(alloc);
-	if (!data)
+	if (!data) {
 		return -ENOMEM;
+	}
 
 	cp = data;
-	_FOREACH_TICKET(i, tk) {
+	FOREACH_TICKET(conf, i, tk) {
 		if ((!is_manual(tk)) && is_time_set(&tk->term_expires)) {
 			/* Manual tickets doesn't have term_expires defined */
 			ts = wall_ts(&tk->term_expires);
 			strftime(timeout_str, sizeof(timeout_str), "%F %T",
 					localtime(&ts));
-		} else
+		} else {
 			strcpy(timeout_str, "INF");
+		}
 
 		if (tk->leader == local && is_time_set(&tk->delay_commit)
 				&& !is_past(&tk->delay_commit)) {
@@ -421,8 +446,9 @@ int list_ticket(char **pdata, unsigned int *len)
 					sizeof(pending_str) - strlen(" (commit pending until ") - 1,
 					"%F %T", localtime(&ts));
 			strcat(pending_str, ")");
-		} else
+		} else {
 			*pending_str = '\0';
+		}
 
 		cp += snprintf(cp,
 				alloc - (cp - data),
@@ -452,8 +478,8 @@ int list_ticket(char **pdata, unsigned int *len)
 		}
 	}
 
-	_FOREACH_TICKET(i, tk) {
-		multiple_grant_warning_length = number_sites_marked_as_granted(tk);
+	FOREACH_TICKET(conf, i, tk) {
+		multiple_grant_warning_length = number_sites_marked_as_granted(conf, tk);
 
 		if (multiple_grant_warning_length > 1) {
 			cp += snprintf(cp,
@@ -461,7 +487,7 @@ int list_ticket(char **pdata, unsigned int *len)
 					"\nWARNING: The ticket %s is granted to multiple sites: ",  // ~55 characters
 					tk->name);
 
-			_FOREACH_NODE(site_index, site) {
+			FOREACH_NODE(conf, site_index, site) {
 				if (tk->sites_where_granted[site_index] > 0) {
 					cp += snprintf(cp,
 						alloc - (cp - data),
@@ -494,17 +520,6 @@ void disown_ticket(struct ticket_config *tk)
 	set_leader(tk, NULL);
 	tk->is_granted = 0;
 	get_time(&tk->term_expires);
-}
-
-int disown_if_expired(struct ticket_config *tk)
-{
-	if (is_past(&tk->term_expires) ||
-			!tk->leader) {
-		disown_ticket(tk);
-		return 1;
-	}
-
-	return 0;
 }
 
 void reset_ticket(struct ticket_config *tk)
@@ -638,14 +653,14 @@ int setup_ticket(struct booth_config *conf)
 }
 
 
-int ticket_answer_list(int fd)
+int ticket_answer_list(struct booth_config *conf, int fd)
 {
 	char *data;
 	int rv;
 	unsigned int olen;
 	struct boothc_hdr_msg hdr;
 
-	rv = list_ticket(&data, &olen);
+	rv = list_ticket(conf, &data, &olen);
 	if (rv < 0)
 		goto out;
 
@@ -659,7 +674,8 @@ out:
 }
 
 
-int process_client_request(struct client *req_client, void *buf)
+int process_client_request(struct booth_config *conf, struct client *req_client,
+			   void *buf)
 {
 	int rv, rc = 1;
 	struct ticket_config *tk;
@@ -669,7 +685,7 @@ int process_client_request(struct client *req_client, void *buf)
 
 	msg = (struct boothc_ticket_msg *)buf;
 	cmd = ntohl(msg->header.cmd);
-	if (!check_ticket(msg->ticket.id, &tk)) {
+	if (!check_ticket(conf, msg->ticket.id, &tk)) {
 		log_warn("client referenced unknown ticket %s",
 				msg->ticket.id);
 		rv = RLT_INVALID_ARG;
@@ -700,10 +716,11 @@ int process_client_request(struct client *req_client, void *buf)
 		goto reply_now;
 	}
 
-	if (cmd == CMD_REVOKE)
+	if (cmd == CMD_REVOKE) {
 		rv = do_revoke_ticket(tk);
-	else
+	} else {
 		rv = do_grant_ticket(tk, ntohl(msg->header.options));
+	}
 
 	if (rv == RLT_MORE) {
 		/* client may receive further notifications, save the
@@ -833,18 +850,19 @@ int leader_update_ticket(struct ticket_config *tk)
 }
 
 
-static void log_lost_servers(struct ticket_config *tk)
+static void log_lost_servers(struct booth_config *conf, struct ticket_config *tk)
 {
 	struct booth_site *n;
 	int i;
 
-	if (tk->retry_number > 1)
+	if (tk->retry_number > 1) {
 		/* log those that we couldn't reach, but do
 		 * that only on the first retry
 		 */
 		return;
+	}
 
-	_FOREACH_NODE(i, n) {
+	FOREACH_NODE(conf, i, n) {
 		if (!(tk->acks_received & n->bitmask)) {
 			tk_log_warn("%s %s didn't acknowledge our %s, "
 			"will retry %d times",
@@ -856,7 +874,7 @@ static void log_lost_servers(struct ticket_config *tk)
 	}
 }
 
-static void resend_msg(struct ticket_config *tk)
+static void resend_msg(struct booth_config *conf, struct ticket_config *tk)
 {
 	struct booth_site *n;
 	int i;
@@ -864,7 +882,7 @@ static void resend_msg(struct ticket_config *tk)
 	if (!(tk->acks_received ^ local->bitmask)) {
 		ticket_broadcast(tk, tk->last_request, 0, RLT_SUCCESS, 0);
 	} else {
-		_FOREACH_NODE(i, n) {
+		FOREACH_NODE(conf, i, n) {
 			if (!(tk->acks_received & n->bitmask)) {
 				n->resend_cnt++;
 				tk_log_debug("resending %s to %s",
@@ -878,7 +896,7 @@ static void resend_msg(struct ticket_config *tk)
 	}
 }
 
-static void handle_resends(struct ticket_config *tk)
+static void handle_resends(struct booth_config *conf, struct ticket_config *tk)
 {
 	int ack_cnt;
 
@@ -910,14 +928,14 @@ static void handle_resends(struct ticket_config *tk)
 			ack_cnt);
 		}
 	} else {
-		log_lost_servers(tk);
+		log_lost_servers(conf, tk);
 	}
 
 just_resend:
-	resend_msg(tk);
+	resend_msg(conf, tk);
 }
 
-int postpone_ticket_processing(struct ticket_config *tk)
+static int postpone_ticket_processing(struct ticket_config *tk)
 {
 	extern timetype start_time;
 
@@ -990,7 +1008,7 @@ static void ticket_lost(struct ticket_config *tk)
 	}
 }
 
-static void next_action(struct ticket_config *tk)
+static void next_action(struct booth_config *conf, struct ticket_config *tk)
 {
 	int rv;
 
@@ -1007,7 +1025,7 @@ static void next_action(struct ticket_config *tk)
 			}
 		} else {
 			if (tk->acks_expected) {
-				handle_resends(tk);
+				handle_resends(conf, tk);
 			}
 		}
 		break;
@@ -1044,7 +1062,7 @@ static void next_action(struct ticket_config *tk)
 			} else {
 				/* Otherwise, just send ACKs if needed */
 				if (tk->acks_expected) {
-					handle_resends(tk);
+					handle_resends(conf, tk);
 				}
 			}
 		}
@@ -1058,7 +1076,7 @@ static void next_action(struct ticket_config *tk)
 	case ST_LEADER:
 		/* timeout or ticket renewal? */
 		if (tk->acks_expected) {
-			handle_resends(tk);
+			handle_resends(conf, tk);
 			if (majority_of_bits(tk, tk->acks_received)) {
 				leader_update_ticket(tk);
 			}
@@ -1076,7 +1094,7 @@ static void next_action(struct ticket_config *tk)
 	}
 }
 
-static void ticket_cron(struct ticket_config *tk)
+static void ticket_cron(struct booth_config *conf, struct ticket_config *tk)
 {
 	/* don't process the tickets too early after start */
 	if (postpone_ticket_processing(tk)) {
@@ -1113,30 +1131,32 @@ static void ticket_cron(struct ticket_config *tk)
 		goto out;
 	}
 
-	next_action(tk);
+	next_action(conf, tk);
 
 out:
 	tk->next_state = 0;
-	if (!tk->in_election && tk->update_cib)
+	if (!tk->in_election && tk->update_cib) {
 		ticket_write(tk);
+	}
 }
 
 
-void process_tickets(void)
+void process_tickets(struct booth_config *conf)
 {
 	struct ticket_config *tk;
 	int i;
 	timetype last_cron;
 
-	_FOREACH_TICKET(i, tk) {
+	FOREACH_TICKET(conf, i, tk) {
 		if (!has_extprog_exited(tk) &&
-				is_time_set(&tk->next_cron) && !is_past(&tk->next_cron))
+				is_time_set(&tk->next_cron) && !is_past(&tk->next_cron)) {
 			continue;
+		}
 
 		tk_log_debug("ticket cron");
 
 		copy_time(&tk->next_cron, &last_cron);
-		ticket_cron(tk);
+		ticket_cron(conf, tk);
 		if (time_cmp(&last_cron, &tk->next_cron, ==)) {
 			tk_log_debug("nobody set ticket wakeup");
 			set_ticket_wakeup(tk);
@@ -1146,13 +1166,13 @@ void process_tickets(void)
 
 
 
-void tickets_log_info(void)
+void tickets_log_info(struct booth_config *conf)
 {
 	struct ticket_config *tk;
 	int i;
 	time_t ts;
 
-	_FOREACH_TICKET(i, tk) {
+	FOREACH_TICKET(conf, i, tk) {
 		ts = wall_ts(&tk->term_expires);
 		tk_log_info("state '%s' "
 				"term %d "
@@ -1206,7 +1226,7 @@ int ticket_recv(struct booth_config *conf, void *buf, struct booth_site *source)
 
 	msg = (struct boothc_ticket_msg *)buf;
 
-	if (!check_ticket(msg->ticket.id, &tk)) {
+	if (!check_ticket(conf, msg->ticket.id, &tk)) {
 		log_warn("got invalid ticket name %s from %s",
 				msg->ticket.id, site_string(source));
 		source->invalid_cnt++;
@@ -1344,20 +1364,6 @@ int is_manual(struct ticket_config *tk)
 {
 	return (tk->mode == TICKET_MODE_MANUAL) ? 1 : 0;
 }
-
-int number_sites_marked_as_granted(struct ticket_config *tk)
-{
-	int i, result = 0;
-	struct booth_site *ignored __attribute__((unused));
-
-	_FOREACH_NODE(i, ignored) {
-		result += tk->sites_where_granted[i];
-	}
-
-	return result;
-}
-
-
 
 /* Given a state (in host byte order), return a human-readable (char*).
  * An array is used so that multiple states can be printed in a single printf(). */

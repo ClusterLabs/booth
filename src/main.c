@@ -507,7 +507,7 @@ static int process_signals(void)
 	}
 	if (sig_usr1_handler_called) {
 		sig_usr1_handler_called = 0;
-		tickets_log_info();
+		tickets_log_info(booth_conf);
 	}
 	if (sig_chld_handler_called) {
 		sig_chld_handler_called = 0;
@@ -570,7 +570,7 @@ static int loop(int fd)
 			}
 		}
 
-		process_tickets();
+		process_tickets(booth_conf);
 
 		if (process_signals() != 0) {
 			return 0;

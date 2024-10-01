@@ -465,7 +465,7 @@ static void process_connection(struct booth_config *conf, int ci)
 	 * result a second later? */
 	switch (ntohl(header->cmd)) {
 	case CMD_LIST:
-		ticket_answer_list(req_cl->fd);
+		ticket_answer_list(conf, req_cl->fd);
 		goto kill;
 	case CMD_PEERS:
 		list_peers(req_cl->fd);
@@ -473,19 +473,21 @@ static void process_connection(struct booth_config *conf, int ci)
 
 	case CMD_GRANT:
 	case CMD_REVOKE:
-		if (process_client_request(req_cl, msg) == 1)
+		if (process_client_request(conf, req_cl, msg) == 1) {
 			goto kill; /* request processed definitely, close connection */
-		else
+		} else {
 			return;
+		}
 
 	case ATTR_LIST:
 	case ATTR_GET:
 	case ATTR_SET:
 	case ATTR_DEL:
-		if (process_attr_request(req_cl, msg) == 1)
+		if (process_attr_request(conf, req_cl, msg) == 1) {
 			goto kill; /* request processed definitely, close connection */
-		else
+		} else {
 			return;
+		}
 
 	default:
 		log_error("connection %d cmd %x unknown",
@@ -1143,7 +1145,7 @@ int message_recv(struct booth_config *conf, void *msg, int msglen)
 		/* not used, clients send/retrieve attributes directly
 		 * from sites
 		 */
-		return attr_recv(msg, source);
+		return attr_recv(conf, msg, source);
 	} else {
 		return ticket_recv(conf, msg, source);
 	}
