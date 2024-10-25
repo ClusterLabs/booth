@@ -67,8 +67,10 @@ static void parse_rtattr(struct rtattr *tb[],
 			 int max, struct rtattr *rta, int len)
 {
 	while (RTA_OK(rta, len)) {
-		if (rta->rta_type <= max)
+		if (rta->rta_type <= max) {
 			tb[rta->rta_type] = rta;
+		}
+
 		rta = RTA_NEXT(rta,len);
 	}
 }
@@ -102,13 +104,17 @@ static int find_address(struct booth_config *conf,
 	mask = ~( (1 << (8 - bits_left)) -1);
 
 	FOREACH_NODE(conf, i, node) {
-		if (family != node->family)
+		if (family != node->family) {
 			continue;
+		}
+
 		n_a = node_to_addr_pointer(node);
 
-		for(matched = 0; matched < node->addrlen; matched++)
-			if (ipaddr[matched] != n_a[matched])
+		for (matched = 0; matched < node->addrlen; matched++) {
+			if (ipaddr[matched] != n_a[matched]) {
 				break;
+			}
+		}
 
 		if (matched == node->addrlen) {
 			*address_bits_matched = matched * 8;
@@ -117,15 +123,18 @@ static int find_address(struct booth_config *conf,
 			break;
 		}
 
-		if (!fuzzy_allowed)
+		if (!fuzzy_allowed) {
 			continue;
-
+		}
 
 		/* Check prefix, whole bytes */
-		if (matched < bytes)
+		if (matched < bytes) {
 			continue;
-		if (matched * 8 < *address_bits_matched)
+		}
+
+		if (matched * 8 < *address_bits_matched) {
 			continue;
+		}
 
 		node_bits = n_a[bytes];
 		ip_bits = ipaddr[bytes];
@@ -158,14 +167,15 @@ static int _find_myself(struct booth_config *conf, int family,
 	int address_bits_matched;
 
 
-	if (local)
+	if (local) {
 		goto found;
-
+	}
 
 	me = NULL;
 	address_bits_matched = 0;
-	if (mep)
+	if (mep) {
 		*mep = NULL;
+	}
 	fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
 	if (fd < 0) {
 		log_error("failed to create netlink socket");
@@ -215,8 +225,9 @@ static int _find_myself(struct booth_config *conf, int family,
 			struct rtattr *tb[IFA_MAX+1];
 			int len;
 
-			if (h->nlmsg_type == NLMSG_DONE)
+			if (h->nlmsg_type == NLMSG_DONE) {
 				goto out;
+			}
 
 			if (h->nlmsg_type == NLMSG_ERROR) {
 				close(fd);
@@ -288,14 +299,17 @@ static int _find_myself(struct booth_config *conf, int family,
 out:
 	close(fd);
 
-	if (!me)
+	if (!me) {
 		return 0;
+	}
 
 	me->local = 1;
 	local = me;
 found:
-	if (mep)
+	if (mep) {
 		*mep = local;
+	}
+
 	return 1;
 }
 
@@ -332,8 +346,9 @@ int check_boothc_header(struct boothc_header *h, int len_incl_data)
 	}
 
 
-	if (len_incl_data < 0)
+	if (len_incl_data < 0) {
 		return 0;
+	}
 
 	if (l != len_incl_data) {
 		log_error("length error - got %d, wanted %d",
@@ -350,14 +365,19 @@ static int do_read(int fd, void *buf, size_t count)
 
 	while (off < count) {
 		rv = read(fd, (char *)buf + off, count - off);
-		if (rv == 0)
+		if (rv == 0) {
 			return -1;
-		if (rv == -1 && errno == EINTR)
+		}
+		if (rv == -1 && errno == EINTR) {
 			continue;
-		if (rv == -1 && errno == EWOULDBLOCK)
+		}
+		if (rv == -1 && errno == EWOULDBLOCK) {
 			break;
-		if (rv == -1)
+		}
+		if (rv == -1) {
 			return -1;
+		}
+
 		off += rv;
 	}
 	return off;
@@ -369,8 +389,10 @@ static int do_write(int fd, void *buf, size_t count)
 
 retry:
 	rv = send(fd, (char *)buf + off, count, MSG_NOSIGNAL);
-	if (rv == -1 && errno == EINTR)
+	if (rv == -1 && errno == EINTR) {
 		goto retry;
+	}
+
 	/* If we cannot write _any_ data, we'd be in an (potential) loop. */
 	if (rv <= 0) {
 		log_error("send failed: %s (%d)", strerror(errno), errno);
@@ -416,8 +438,9 @@ int read_client(struct client *req_cl)
 	fd = req_cl->fd;
 	rv = do_read(fd, msg+req_cl->offset, len-req_cl->offset);
 	if (rv < 0) {
-		if (errno == ECONNRESET)
+		if (errno == ECONNRESET) {
 			log_debug("client connection reset for fd %d", fd);
+		}
 		return -1;
 	}
 	req_cl->offset += rv;
@@ -592,12 +615,14 @@ static int booth_tcp_init(void * unused __attribute__((unused)))
 {
 	int rv;
 
-	if (get_local_id() < 0)
+	if (get_local_id() < 0) {
 		return -1;
+	}
 
 	rv = setup_tcp_listener(0);
-	if (rv < 0)
+	if (rv < 0) {
 		return rv;
+	}
 
 	client_add(rv, booth_transport + TCP,
 			process_tcp_listener, NULL);
@@ -620,12 +645,14 @@ static int connect_nonb(int sockfd, const struct sockaddr *saptr,
 	}
 
 	error = 0;
-	if ( (n = connect(sockfd, saptr, salen)) < 0)
-		if (errno != EINPROGRESS)
-			return -1;
+	n = connect(sockfd, saptr, salen);
+	if (n < 0 && errno != EINPROGRESS) {
+		return -1;
+	}
 
-	if (n == 0)
+	if (n == 0) {
 		goto done;	/* connect completed immediately */
+	}
 
 	FD_ZERO(&rset);
 	FD_SET(sockfd, &rset);
@@ -643,8 +670,9 @@ static int connect_nonb(int sockfd, const struct sockaddr *saptr,
 
 	if (FD_ISSET(sockfd, &rset) || FD_ISSET(sockfd, &wset)) {
 		len = sizeof(error);
-		if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
+		if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
 			return -1;	/* Solaris pending error */
+		}
 	} else {
 		log_error("select error: sockfd not set");
 		return -1;
@@ -671,8 +699,9 @@ static int booth_tcp_open(struct booth_site *to)
 {
 	int s, rv;
 
-	if (to->tcp_fd >= STDERR_FILENO)
+	if (to->tcp_fd >= STDERR_FILENO) {
 		goto found;
+	}
 
 	s = socket(to->family, SOCK_STREAM, 0);
 	if (s == -1) {
@@ -683,11 +712,12 @@ static int booth_tcp_open(struct booth_site *to)
 
 	rv = connect_nonb(s, (struct sockaddr *)&to->sa6, to->saddrlen, 10);
 	if (rv == -1) {
-		if( errno == ETIMEDOUT)
+		if (errno == ETIMEDOUT) {
 			log_error("connect to %s got a timeout", site_string(to));
-		else 
+		} else {
 			log_error("connect to %s got an error: %s", site_string(to),
 					strerror(errno));
+		}
 		goto error;
 	}
 
@@ -697,8 +727,10 @@ found:
 	return 1;
 
 error:
-	if (s >= 0)
+	if (s >= 0) {
 		close(s);
+	}
+
 	return -1;
 }
 
@@ -783,8 +815,10 @@ static int booth_tcp_recv_auth(struct booth_config *conf, struct booth_site *fro
 static int booth_tcp_close(struct booth_site *to)
 {
 	if (to) {
-		if (to->tcp_fd > STDERR_FILENO)
+		if (to->tcp_fd > STDERR_FILENO) {
 			close(to->tcp_fd);
+		}
+
 		to->tcp_fd = -1;
 	}
 	return 0;
@@ -841,8 +875,10 @@ static int setup_udp_server(void)
 	return 0;
 
 ex:
-	if (fd >= 0)
+	if (fd >= 0) {
 		close(fd);
+	}
+
 	return -1;
 }
 
@@ -866,17 +902,19 @@ static void process_recv(struct booth_config *conf, int ci)
 			buffer, sizeof(buffer),
 			MSG_NOSIGNAL | MSG_DONTWAIT,
 			(struct sockaddr *)&sa, &sa_len);
-	if (rv == -1)
+	if (rv == -1) {
 		return;
+	}
 
 	rv = deliver_fn(conf, (void*) msg, rv);
 	if (rv > 0) {
 		if (getnameinfo((struct sockaddr *)&sa, sa_len,
 				buffer, sizeof(buffer), NULL, 0,
-				NI_NUMERICHOST) == 0)
+				NI_NUMERICHOST) == 0) {
 			log_error("unknown sender: %08x (real: %s)", rv, buffer);
-		else
+		} else {
 			log_error("unknown sender: %08x", rv);
+		}
 	}
 }
 
@@ -885,8 +923,9 @@ static int booth_udp_init(void *f)
 	int rv;
 
 	rv = setup_udp_server();
-	if (rv < 0)
+	if (rv < 0) {
 		return rv;
+	}
 
 	deliver_fn = f;
 	client_add(local->udp_fd,
