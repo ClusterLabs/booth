@@ -208,15 +208,50 @@ void process_tickets(struct booth_config *conf);
 void tickets_log_info(struct booth_config *conf);
 
 char *state_to_string(uint32_t state_ho);
-int send_reject(struct booth_site *dest, struct ticket_config *tk,
-	cmd_result_t code, struct boothc_ticket_msg *in_msg);
-int send_msg (int cmd, struct ticket_config *tk,
-	struct booth_site *dest, struct boothc_ticket_msg *in_msg);
-int notify_client(struct ticket_config *tk, int client_fd,
-	struct boothc_ticket_msg *msg);
-int ticket_broadcast(struct ticket_config *tk, cmd_request_t cmd, cmd_request_t expected_reply, cmd_result_t res, cmd_reason_t reason);
 
-int leader_update_ticket(struct ticket_config *tk);
+/**
+ * @internal
+ * For a given ticket and recipient site, send a rejection
+ *
+ * @param[in,out] conf   config object to refer to
+ * @param[in]     dest   site structure of the recipient
+ * @param[in]     tk     ticket at hand
+ * @param[in]     code   further detail for the rejection
+ * @param[in]     in_msg message this is going to be a response to
+ */
+int send_reject(struct booth_config *conf, struct booth_site *dest,
+		struct ticket_config *tk, cmd_result_t code,
+		struct boothc_ticket_msg *in_msg);
+
+/**
+ * @internal
+ * For a given ticket, recipient site and possibly its message, send a response
+ *
+ * @param[in,out] conf  config object to refer to
+ * @param[in]     cmd   what type of message is to be sent
+ * @param[in]     dest  site structure of the recipient
+ * @param[in]     in_msg message this is going to be a response to
+ */
+int send_msg(struct booth_config *conf, int cmd, struct ticket_config *tk,
+	     struct booth_site *dest, struct boothc_ticket_msg *in_msg);
+
+/**
+ * @internal
+ * Notify client at particular socket, regarding particular ticket
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[in]     tk   ticket at hand
+ * @param[in]     fd   file descriptor of the socket to respond to
+ * @param[in]     msg  input message being responded to
+ */
+int notify_client(struct booth_config *conf, struct ticket_config *tk,
+                  int client_fd, struct boothc_ticket_msg *msg);
+
+int ticket_broadcast(struct booth_config *conf, struct ticket_config *tk,
+		     cmd_request_t cmd, cmd_request_t expected_reply,
+		     cmd_result_t res, cmd_reason_t reason);
+
+int leader_update_ticket(struct booth_config *conf, struct ticket_config *tk);
 void add_random_delay(struct ticket_config *tk);
 void schedule_election(struct ticket_config *tk, cmd_reason_t reason);
 

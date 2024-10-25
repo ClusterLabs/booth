@@ -468,7 +468,7 @@ static void process_connection(struct booth_config *conf, int ci)
 		ticket_answer_list(conf, req_cl->fd);
 		goto kill;
 	case CMD_PEERS:
-		list_peers(req_cl->fd);
+		list_peers(conf, req_cl->fd);
 		goto kill;
 
 	case CMD_GRANT:
@@ -501,7 +501,7 @@ static void process_connection(struct booth_config *conf, int ci)
 
 send_err:
 	init_header(&err_reply.header, CL_RESULT, 0, 0, errc, 0, sizeof(err_reply));
-	send_client_msg(req_cl->fd, &err_reply);
+	send_client_msg(conf, req_cl->fd, &err_reply);
 
 kill:
 	deadfn = req_cl->deadfn;
@@ -660,7 +660,7 @@ done:
 	return 0;
 }
 
-int booth_tcp_open(struct booth_site *to)
+static int booth_tcp_open(struct booth_site *to)
 {
 	int s, rv;
 
@@ -695,13 +695,42 @@ error:
 	return -1;
 }
 
-int booth_tcp_send(struct booth_site *to, void *buf, int len)
+/* data + (datalen-sizeof(struct hmac)) points to struct hmac
+ * i.e. struct hmac is always tacked on the payload
+ */
+static int add_hmac(struct booth_config *conf, void *data, int len)
+{
+	int rv = 0;
+#if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
+	int payload_len;
+	struct hmac *hp;
+
+	if (!is_auth_req()) {
+		return 0;
+	}
+
+	payload_len = len - sizeof(struct hmac);
+	hp = (struct hmac *)((unsigned char *)data + payload_len);
+	hp->hid = htonl(BOOTH_HASH);
+	memset(hp->hash, 0, BOOTH_MAC_SIZE);
+	rv = calc_hmac(data, payload_len, BOOTH_HASH, hp->hash,
+		       conf->authkey, conf->authkey_len);
+	if (rv < 0) {
+		log_error("internal error: cannot calculate mac");
+	}
+#endif
+	return rv;
+}
+
+static int booth_tcp_send(struct booth_config *conf, struct booth_site *to,
+			  void *buf, int len)
 {
 	int rv;
 
-	rv = add_hmac(buf, len);
-	if (!rv)
+	rv = add_hmac(conf, buf, len);
+	if (!rv) {
 		rv = do_write(to->tcp_fd, buf, len);
+	}
 
 	return rv;
 }
@@ -856,7 +885,8 @@ static int booth_udp_init(void *f)
 	return 0;
 }
 
-int booth_udp_send(struct booth_site *to, void *buf, int len)
+static int booth_udp_send(struct booth_config *conf, struct booth_site *to,
+			  void *buf, int len)
 {
 	int rv;
 
@@ -881,35 +911,40 @@ int booth_udp_send(struct booth_site *to, void *buf, int len)
 	return rv;
 }
 
-int booth_udp_send_auth(struct booth_site *to, void *buf, int len)
+int booth_udp_send_auth(struct booth_config *conf, struct booth_site *to,
+			void *buf, int len)
 {
 	int rv;
 
-	rv = add_hmac(buf, len);
-	if (rv < 0)
+	rv = add_hmac(conf, buf, len);
+	if (rv < 0) {
 		return rv;
-	return booth_udp_send(to, buf, len);
+	}
+
+	return booth_udp_send(conf, to, buf, len);
 }
 
-static int booth_udp_broadcast_auth(void *buf, int len)
+static int booth_udp_broadcast_auth(struct booth_config *conf, void *buf, int len)
 {
 	int i, rv, rvs;
 	struct booth_site *site;
 
-
-	if (!booth_conf || !booth_conf->site_count)
+	if (!conf || !conf->site_count) {
 		return -1;
+	}
 
-	rv = add_hmac(buf, len);
-	if (rv < 0)
+	rv = add_hmac(conf, buf, len);
+	if (rv < 0) {
 		return rv;
+	}
 
 	rvs = 0;
-	_FOREACH_NODE(i, site) {
+	FOREACH_NODE(conf, i, site) {
 		if (site != local) {
-			rv = booth_udp_send(site, buf, len);
-			if (!rvs)
+			rv = booth_udp_send(conf, site, buf, len);
+			if (!rvs) {
 				rvs = rv;
+			}
 		}
 	}
 
@@ -927,7 +962,8 @@ static int booth_sctp_init(void *f __attribute__((unused)))
 	return 0;
 }
 
-static int booth_sctp_send(struct booth_site * to __attribute__((unused)),
+static int booth_sctp_send(struct booth_config *conf __attribute__((unused)),
+			   struct booth_site *to __attribute__((unused)),
 			   void *buf __attribute__((unused)),
 			   int len __attribute__((unused)))
 {
@@ -979,32 +1015,6 @@ const struct booth_transport booth_transport[TRANSPORT_ENTRIES] = {
 		.exit = return_0,
 	}
 };
-
-/* data + (datalen-sizeof(struct hmac)) points to struct hmac
- * i.e. struct hmac is always tacked on the payload
- */
-int add_hmac(void *data, int len)
-{
-	int rv = 0;
-#if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
-	int payload_len;
-	struct hmac *hp;
-
-	if (!is_auth_req())
-		return 0;
-
-	payload_len = len - sizeof(struct hmac);
-	hp = (struct hmac *)((unsigned char *)data + payload_len);
-	hp->hid = htonl(BOOTH_HASH);
-	memset(hp->hash, 0, BOOTH_MAC_SIZE);
-	rv = calc_hmac(data, payload_len, BOOTH_HASH, hp->hash,
-		booth_conf->authkey, booth_conf->authkey_len);
-	if (rv < 0) {
-		log_error("internal error: cannot calculate mac");
-	}
-#endif
-	return rv;
-}
 
 #if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
 
@@ -1086,25 +1096,28 @@ int check_auth(struct booth_site *from, void *buf, int len)
 	return rv;
 }
 
-int send_data(int fd, void *data, int datalen)
+int send_data(struct booth_config *conf, int fd, void *data, int datalen)
 {
 	int rv = 0;
 
-	rv = add_hmac(data, datalen);
-	if (!rv)
+	rv = add_hmac(conf, data, datalen);
+	if (!rv) {
 		rv = do_write(fd, data, datalen);
+	}
 
 	return rv;
 }
 
-int send_header_plus(int fd, struct boothc_hdr_msg *msg, void *data, int len)
+int send_header_plus(struct booth_config *conf, int fd,
+		     struct boothc_hdr_msg *msg, void *data, int len)
 {
 	int rv;
 
-	rv = send_data(fd, msg, sendmsglen(msg)-len);
+	rv = send_data(conf, fd, msg, sendmsglen(msg)-len);
 
-	if (rv >= 0 && len)
+	if (rv >= 0 && len) {
 		rv = do_write(fd, data, len);
+	}
 
 	return rv;
 }

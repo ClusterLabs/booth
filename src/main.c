@@ -280,21 +280,23 @@ static int format_peers(char **pdata, unsigned int *len)
 }
 
 
-void list_peers(int fd)
+void list_peers(struct booth_config *conf, int fd)
 {
 	char *data;
 	unsigned int olen;
 	struct boothc_hdr_msg hdr;
 
-	if (format_peers(&data, &olen) < 0)
+	if (format_peers(&data, &olen) < 0) {
 		goto out;
+	}
 
 	init_header(&hdr.header, CL_LIST, 0, 0, RLT_SUCCESS, 0, sizeof(hdr) + olen);
-	(void)send_header_plus(fd, &hdr, data, olen);
+	send_header_plus(conf, fd, &hdr, data, olen);
 
 out:
-	if (data)
+	if (data) {
 		free(data);
+	}
 }
 
 /* trim trailing spaces if the key is ascii
@@ -719,7 +721,7 @@ static int query_get_string_answer(cmd_request_t cmd)
 	if (rv < 0)
 		goto out_close;
 
-	rv = tpt->send(site, request, msg_size);
+	rv = tpt->send(booth_conf, site, request, msg_size);
 	if (rv < 0)
 		goto out_close;
 
@@ -820,9 +822,10 @@ redirect:
 	if (rv < 0)
 		goto out_close;
 
-	rv = tpt->send(site, &cl.msg, sendmsglen(&cl.msg));
-	if (rv < 0)
+	rv = tpt->send(booth_conf, site, &cl.msg, sendmsglen(&cl.msg));
+	if (rv < 0) {
 		goto out_close;
+	}
 
 read_more:
 	rv = tpt->recv_auth(site, &reply, sizeof(reply));
