@@ -1,17 +1,17 @@
-/* 
+/*
  * Copyright (C) 2011 Jiaju Zhang <jjzhang@suse.de>
  * Copyright (C) 2013-2014 Philipp Marek <philipp.marek@linbit.com>
- * 
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
  * License as published by the Free Software Foundation; either
  * version 2 of the License, or (at your option) any later version.
- * 
+ *
  * This software is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
@@ -50,8 +50,6 @@
 #define SOCKET_BUFFER_SIZE	160000
 #define FRAME_SIZE_MAX		10000
 
-
-
 struct booth_site *local = NULL;
 
 /* function to be called when handling booth-group-internal messages;
@@ -61,7 +59,6 @@ struct booth_site *local = NULL;
  * emitted in the error log message together with the real source
  * address if this is available */
 static int (*deliver_fn) (struct booth_config *conf, void *msg, int msglen);
-
 
 static void parse_rtattr(struct rtattr *tb[],
 			 int max, struct rtattr *rta, int len)
@@ -82,10 +79,8 @@ enum match_type {
 };
 
 static int find_address(struct booth_config *conf,
-			unsigned char ipaddr[BOOTH_IPADDR_LEN],
-			int family, int prefixlen,
-			int fuzzy_allowed,
-			struct booth_site **me,
+			unsigned char ipaddr[BOOTH_IPADDR_LEN], int family,
+			int prefixlen, int fuzzy_allowed, struct booth_site **me,
 			int *address_bits_matched)
 {
 	int i;
@@ -151,7 +146,6 @@ static int find_address(struct booth_config *conf,
 	return did_match;
 }
 
-
 static int _find_myself(struct booth_config *conf, int family,
 			struct booth_site **mep, int fuzzy_allowed)
 {
@@ -165,7 +159,6 @@ static int _find_myself(struct booth_config *conf, int family,
 		struct rtgenmsg g;
 	} req;
 	int address_bits_matched;
-
 
 	if (local) {
 		goto found;
@@ -195,8 +188,8 @@ static int _find_myself(struct booth_config *conf, int family,
 	req.nlh.nlmsg_seq = 1;
 	req.g.rtgen_family = family;
 
-	if (sendto(fd, (void *)&req, sizeof(req), 0,
-				(struct sockaddr*)&nladdr, sizeof(nladdr)) < 0)  {
+	if (sendto(fd, (void *) &req, sizeof(req), 0,
+		   (struct sockaddr*) &nladdr, sizeof(nladdr)) < 0)  {
 		close(fd);
 		log_error("failed to send data to netlink socket");
 		return 0;
@@ -206,12 +199,8 @@ static int _find_myself(struct booth_config *conf, int family,
 		int status;
 		struct nlmsghdr *h;
 		struct iovec iov = { rcvbuf, sizeof(rcvbuf) };
-		struct msghdr msg = {
-			(void *)&nladdr, sizeof(nladdr),
-			&iov,   1,
-			NULL,   0,
-			0
-		};
+		struct msghdr msg = { (void *) &nladdr, sizeof(nladdr), &iov,
+				      1, NULL, 0, 0 };
 
 		status = recvmsg(fd, &msg, 0);
 		if (!status) {
@@ -220,7 +209,7 @@ static int _find_myself(struct booth_config *conf, int family,
 			return 0;
 		}
 
-		for (h = (struct nlmsghdr *)rcvbuf; NLMSG_OK(h, status); h = NLMSG_NEXT(h, status)) {
+		for (h = (struct nlmsghdr *) rcvbuf; NLMSG_OK(h, status); h = NLMSG_NEXT(h, status)) {
 			struct ifaddrmsg *ifa = NULL;
 			struct rtattr *tb[IFA_MAX+1];
 			int len;
@@ -245,8 +234,10 @@ static int _find_myself(struct booth_config *conf, int family,
 			memset(tb, 0, sizeof(tb));
 			parse_rtattr(tb, IFA_MAX, IFA_RTA(ifa), len);
 			memset(ipaddr, 0, BOOTH_IPADDR_LEN);
-			/* prefer IFA_LOCAL if it exists, for p-t-p
-			 * interfaces, otherwise use IFA_ADDRESS */
+
+			/* prefer IFA_LOCAL if it exists, for p-t-p interfaces,
+			 * otherwise use IFA_ADDRESS
+			 */
 			if (tb[IFA_LOCAL]) {
 				memcpy(ipaddr, RTA_DATA(tb[IFA_LOCAL]),
 				       BOOTH_IPADDR_LEN);
@@ -305,6 +296,7 @@ out:
 
 	me->local = 1;
 	local = me;
+
 found:
 	if (mep) {
 		*mep = local;
@@ -320,11 +312,10 @@ int find_myself(struct booth_config *conf, struct booth_site **mep,
 	       _find_myself(conf, AF_INET, mep, fuzzy_allowed);
 }
 
-
-/** Checks the header fields for validity.
- * cf. init_header().
+/* Check the header fields for validity.
  * For @len_incl_data < 0 the length is not checked.
- * Return <0 if error, else bytes read. */
+ * Return < 0 if error, else bytes read.
+ */
 int check_boothc_header(struct boothc_header *h, int len_incl_data)
 {
 	int l;
@@ -338,21 +329,18 @@ int check_boothc_header(struct boothc_header *h, int len_incl_data)
 		return -EINVAL;
 	}
 
-
 	l = ntohl(h->length);
 	if (l < sizeof(*h)) {
 		log_error("length %d out of range", l);
 		return -EINVAL;
 	}
 
-
 	if (len_incl_data < 0) {
 		return 0;
 	}
 
 	if (l != len_incl_data) {
-		log_error("length error - got %d, wanted %d",
-				len_incl_data, l);
+		log_error("length error - got %d, wanted %d", len_incl_data, l);
 		return -EINVAL;
 	}
 
@@ -424,11 +412,12 @@ int read_client(struct client *req_cl)
 		}
 
 		memset(msg, 0, MAX_MSG_LEN);
-		req_cl->msg = (void *)msg;
+		req_cl->msg = (void *) msg;
 	} else {
-		msg = (char *)req_cl->msg;
+		msg = (char *) req_cl->msg;
 	}
-	header = (struct boothc_header *)msg;
+
+	header = (struct boothc_header *) msg;
 
 	/* update len if we read enough */
 	if (req_cl->offset >= sizeof(*header)) {
@@ -443,6 +432,7 @@ int read_client(struct client *req_cl)
 		}
 		return -1;
 	}
+
 	req_cl->offset += rv;
 
 	/* update len if we read enough */
@@ -461,7 +451,6 @@ int read_client(struct client *req_cl)
 
 	return 0;
 }
-
 
 /* Only used for client requests (tcp) */
 static void process_connection(struct booth_config *conf, int ci)
@@ -484,15 +473,15 @@ static void process_connection(struct booth_config *conf, int ci)
 		msg = req_cl->msg;
 	}
 
-	header = (struct boothc_header *)msg;
+	header = (struct boothc_header *) msg;
 	if (check_auth(conf, NULL, msg, ntohl(header->length))) {
 		errc = RLT_AUTH;
 		goto send_err;
 	}
 
 	/* For CMD_GRANT and CMD_REVOKE:
-	 * Don't close connection immediately, but send
-	 * result a second later? */
+	 * Don't close connection immediately, but send result a second later?
+	 */
 	switch (ntohl(header->cmd)) {
 	case CMD_LIST:
 		ticket_answer_list(conf, req_cl->fd);
@@ -520,8 +509,7 @@ static void process_connection(struct booth_config *conf, int ci)
 		}
 
 	default:
-		log_error("connection %d cmd %x unknown",
-				ci, ntohl(header->cmd));
+		log_error("connection %d cmd %x unknown", ci, ntohl(header->cmd));
 		errc = RLT_INVALID_ARG;
 		goto send_err;
 	}
@@ -535,12 +523,10 @@ send_err:
 
 kill:
 	deadfn = req_cl->deadfn;
-	if(deadfn) {
+	if (deadfn) {
 		deadfn(ci);
 	}
-	return;
 }
-
 
 static void process_tcp_listener(struct booth_config *conf, int ci)
 {
@@ -550,11 +536,10 @@ static void process_tcp_listener(struct booth_config *conf, int ci)
 
 	fd = accept(clients[ci].fd, &addr, &addrlen);
 	if (fd < 0) {
-		log_error("process_tcp_listener: accept error %d %d",
-			  fd, errno);
+		log_error("process_tcp_listener: accept error %d %d", fd, errno);
 		return;
 	}
-	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&one, sizeof(one));
+	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one));
 
 	flags = fcntl(fd, F_GETFL, 0);
 	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
@@ -564,8 +549,7 @@ static void process_tcp_listener(struct booth_config *conf, int ci)
 		return;
 	}
 
-	i = client_add(fd, clients[ci].transport,
-			process_connection, NULL);
+	i = client_add(fd, clients[ci].transport, process_connection, NULL);
 
 	log_debug("client connection %d fd %d", i, fd);
 }
@@ -581,7 +565,7 @@ int setup_tcp_listener(int test_only)
 		return s;
 	}
 
-	rv = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&one, sizeof(one));
+	rv = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
 	if (rv == -1) {
 		close(s);
 		log_error("failed to set the SO_REUSEADDR option");
@@ -624,19 +608,17 @@ static int booth_tcp_init(void * unused __attribute__((unused)))
 		return rv;
 	}
 
-	client_add(rv, booth_transport + TCP,
-			process_tcp_listener, NULL);
-
+	client_add(rv, booth_transport + TCP, process_tcp_listener, NULL);
 	return 0;
 }
 
 static int connect_nonb(int sockfd, const struct sockaddr *saptr,
 			socklen_t salen, int sec)
 {
-	int		flags, n, error;
-	socklen_t	len;
-	fd_set		rset, wset;
-	struct timeval	tval;
+	int flags, n, error;
+	socklen_t len;
+	fd_set rset, wset;
+	struct timeval tval;
 
 	flags = fcntl(sockfd, F_GETFL, 0);
 	if (fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1) {
@@ -661,9 +643,6 @@ static int connect_nonb(int sockfd, const struct sockaddr *saptr,
 	tval.tv_usec = 0;
 
 	if (select(sockfd + 1, &rset, &wset, NULL, sec ? &tval : NULL) == 0) {
-		/* leave outside function to close */
-		/* timeout */
-		/* close(sockfd); */	
 		errno = ETIMEDOUT;
 		return -1;
 	}
@@ -686,8 +665,6 @@ done:
 	}
 
 	if (error) {
-		/* leave outside function to close */
-		/* close(sockfd); */	
 		errno = error;
 		return -1;
 	}
@@ -709,14 +686,13 @@ static int booth_tcp_open(struct booth_site *to)
 		return -1;
 	}
 
-
-	rv = connect_nonb(s, (struct sockaddr *)&to->sa6, to->saddrlen, 10);
+	rv = connect_nonb(s, (struct sockaddr *) &to->sa6, to->saddrlen, 10);
 	if (rv == -1) {
 		if (errno == ETIMEDOUT) {
 			log_error("connect to %s got a timeout", site_string(to));
 		} else {
 			log_error("connect to %s got an error: %s", site_string(to),
-					strerror(errno));
+				  strerror(errno));
 		}
 		goto error;
 	}
@@ -749,9 +725,10 @@ static int add_hmac(struct booth_config *conf, void *data, int len)
 	}
 
 	payload_len = len - sizeof(struct hmac);
-	hp = (struct hmac *)((unsigned char *)data + payload_len);
+	hp = (struct hmac *) ((unsigned char *) data + payload_len);
 	hp->hid = htonl(BOOTH_HASH);
 	memset(hp->hash, 0, BOOTH_MAC_SIZE);
+
 	rv = calc_hmac(data, payload_len, BOOTH_HASH, hp->hash,
 		       conf->authkey, conf->authkey_len);
 	if (rv < 0) {
@@ -776,13 +753,13 @@ static int booth_tcp_send(struct booth_config *conf, struct booth_site *to,
 
 static int booth_tcp_recv(struct booth_site *from, void *buf, int len)
 {
-	int got;
 	/* Needs timeouts! */
-	got = do_read(from->tcp_fd, buf, len);
+	int got = do_read(from->tcp_fd, buf, len);
+
 	if (got < 0) {
 		log_error("read failed (%d): %s", errno, strerror(errno));
-		return got;
 	}
+
 	return got;
 }
 
@@ -798,9 +775,11 @@ static int booth_tcp_recv_auth(struct booth_config *conf, struct booth_site *fro
 	if (got < 0) {
 		return got;
 	}
+
 	total = got;
+
 	if (is_auth_req()) {
-		got = booth_tcp_recv(from, (unsigned char *)buf+payload_len,
+		got = booth_tcp_recv(from, (unsigned char *) buf+payload_len,
 				     sizeof(struct hmac));
 
 		if (got != sizeof(struct hmac) || check_auth(conf, from, buf, len)) {
@@ -809,6 +788,7 @@ static int booth_tcp_recv_auth(struct booth_config *conf, struct booth_site *fro
 
 		total += got;
 	}
+
 	return total;
 }
 
@@ -821,6 +801,7 @@ static int booth_tcp_close(struct booth_site *to)
 
 		to->tcp_fd = -1;
 	}
+
 	return 0;
 }
 
@@ -843,29 +824,29 @@ static int setup_udp_server(void)
 
 	rv = fcntl(fd, F_SETFL, O_NONBLOCK);
 	if (rv == -1) {
-		log_error("failed to set non-blocking operation "
-			  "on UDP socket: %s", strerror(errno));
+		log_error("failed to set non-blocking operation on UDP socket: %s",
+			  strerror(errno));
 		goto ex;
 	}
 
-	rv = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&one, sizeof(one));
+	rv = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
 	if (rv == -1) {
 		log_error("failed to set the SO_REUSEADDR option");
 		goto ex;
 	}
 
-	rv = bind(fd, (struct sockaddr *)&local->sa6, local->saddrlen);
+	rv = bind(fd, (struct sockaddr *) &local->sa6, local->saddrlen);
 
 	if (rv == -1) {
 		log_error("failed to bind UDP socket to [%s]:%d: %s",
-				site_string(local), site_port(local),
-				strerror(errno));
+			  site_string(local), site_port(local), strerror(errno));
 		goto ex;
 	}
 
 	recvbuf_size = SOCKET_BUFFER_SIZE;
-	rv = setsockopt(fd, SOL_SOCKET, SO_RCVBUF,
-			&recvbuf_size, sizeof(recvbuf_size));
+	rv = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &recvbuf_size,
+			sizeof(recvbuf_size));
+
 	if (rv == -1) {
 		log_error("failed to set recvbuf size");
 		goto ex;
@@ -882,35 +863,31 @@ ex:
 	return -1;
 }
 
-
 /* Receive/process callback for UDP */
 static void process_recv(struct booth_config *conf, int ci)
 {
 	struct sockaddr_storage sa;
 	int rv;
 	socklen_t sa_len;
-	/* beware, the buffer needs to be large enough to accept
-	 * a packet */
+	/* buffer needs to be large enough to accept a packet */
 	char buffer[MAX_MSG_LEN];
 	/* Used for unit tests */
 	struct boothc_ticket_msg *msg;
 
-
 	sa_len = sizeof(sa);
-	msg = (void*)buffer;
-	rv = recvfrom(clients[ci].fd,
-			buffer, sizeof(buffer),
-			MSG_NOSIGNAL | MSG_DONTWAIT,
-			(struct sockaddr *)&sa, &sa_len);
+	msg = (void*) buffer;
+	rv = recvfrom(clients[ci].fd, buffer, sizeof(buffer),
+		      MSG_NOSIGNAL | MSG_DONTWAIT, (struct sockaddr *) &sa,
+		      &sa_len);
+
 	if (rv == -1) {
 		return;
 	}
 
 	rv = deliver_fn(conf, (void*) msg, rv);
 	if (rv > 0) {
-		if (getnameinfo((struct sockaddr *)&sa, sa_len,
-				buffer, sizeof(buffer), NULL, 0,
-				NI_NUMERICHOST) == 0) {
+		if (getnameinfo((struct sockaddr *) &sa, sa_len, buffer,
+			        sizeof(buffer), NULL, 0, NI_NUMERICHOST) == 0) {
 			log_error("unknown sender: %08x (real: %s)", rv, buffer);
 		} else {
 			log_error("unknown sender: %08x", rv);
@@ -928,10 +905,7 @@ static int booth_udp_init(void *f)
 	}
 
 	deliver_fn = f;
-	client_add(local->udp_fd,
-			booth_transport + UDP,
-			process_recv, NULL);
-
+	client_add(local->udp_fd, booth_transport + UDP, process_recv, NULL);
 	return 0;
 }
 
@@ -942,20 +916,18 @@ static int booth_udp_send(struct booth_config *conf, struct booth_site *to,
 
 	to->sent_cnt++;
 	rv = sendto(local->udp_fd, buf, len, MSG_NOSIGNAL,
-			(struct sockaddr *)&to->sa6, to->saddrlen);
+		    (struct sockaddr *) &to->sa6, to->saddrlen);
+
 	if (rv == len) {
 		rv = 0;
 	} else if (rv < 0) {
 		to->sent_err_cnt++;
-		log_error("Cannot send to %s: %d %s",
-				site_string(to),
-				errno,
-				strerror(errno));
+		log_error("Cannot send to %s: %d %s", site_string(to), errno,
+			  strerror(errno));
 	} else {
 		rv = -1;
 		to->sent_err_cnt++;
-		log_error("Packet sent to %s got truncated",
-				site_string(to));
+		log_error("Packet sent to %s got truncated", site_string(to));
 	}
 
 	return rv;
@@ -1037,6 +1009,7 @@ static int return_0(void)
 {
 	return 0;
 }
+
 const struct booth_transport booth_transport[TRANSPORT_ENTRIES] = {
 	[TCP] = {
 		.name = "TCP",
@@ -1091,9 +1064,10 @@ static int verify_ts(struct booth_config *conf, struct booth_site *from,
 		return -1;
 	}
 
-	h = (struct boothc_header *)buf;
+	h = (struct boothc_header *) buf;
 	tv.tv_sec = ntohl(h->secs);
 	tv.tv_usec = ntohl(h->usecs);
+
 	if (from) {
 		curr_tv.tv_sec = from->last_secs;
 		curr_tv.tv_usec = from->last_usecs;
@@ -1102,7 +1076,7 @@ static int verify_ts(struct booth_config *conf, struct booth_site *from,
 		}
 
 		log_warn("%s: packet timestamp older than previous one",
-			site_string(from));
+			 site_string(from));
 	}
 
 	gettimeofday(&now, NULL);
@@ -1112,7 +1086,7 @@ static int verify_ts(struct booth_config *conf, struct booth_site *from,
 	}
 
 	log_error("%s: packet timestamp older than %d seconds",
-		peer_string(from), conf->maxtimeskew);
+		  peer_string(from), conf->maxtimeskew);
 	return -1;
 
 accept:
@@ -1139,15 +1113,18 @@ int check_auth(struct booth_config *conf, struct booth_site *from, void *buf,
 	payload_len = len - sizeof(struct hmac);
 	if (payload_len < 0) {
 		log_error("%s: failed to authenticate, packet too short (size:%d)",
-			peer_string(from), len);
+			  peer_string(from), len);
 		return -1;
 	}
-	hp = (struct hmac *)((unsigned char *)buf + payload_len);
+
+	hp = (struct hmac *) ((unsigned char *) buf + payload_len);
 	rv = verify_hmac(buf, payload_len, ntohl(hp->hid), hp->hash,
 			 conf->authkey, conf->authkey_len);
+
 	if (!rv) {
 		rv = verify_ts(conf, from, buf, len);
 	}
+
 	if (rv != 0) {
 		log_error("%s: failed to authenticate", peer_string(from));
 	}
@@ -1185,10 +1162,8 @@ int send_header_plus(struct booth_config *conf, int fd,
 int message_recv(struct booth_config *conf, void *msg, int msglen)
 {
 	uint32_t from;
-	struct boothc_header *header;
+	struct boothc_header *header = msg;
 	struct booth_site *source;
-
-	header = (struct boothc_header *)msg;
 
 	from = ntohl(header->from);
 	if (!find_site_by_id(conf, from, &source)) {
@@ -1214,9 +1189,7 @@ int message_recv(struct booth_config *conf, void *msg, int msglen)
 	}
 
 	if (ntohl(header->opts) & BOOTH_OPT_ATTR) {
-		/* not used, clients send/retrieve attributes directly
-		 * from sites
-		 */
+		/* not used, clients send/retrieve attributes directly from sites */
 		return attr_recv(conf, msg, source);
 	} else {
 		return ticket_recv(conf, msg, source);
