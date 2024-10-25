@@ -20,6 +20,7 @@
 #include "b_config.h"
 
 #include <string.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
@@ -191,7 +192,7 @@ static int _find_myself(struct booth_config *conf, int family,
 		return 0;
 	}
 
-	while (1) {
+	while (true) {
 		int status;
 		struct nlmsghdr *h;
 		struct iovec iov = { rcvbuf, sizeof(rcvbuf) };
@@ -210,6 +211,10 @@ static int _find_myself(struct booth_config *conf, int family,
 		}
 
 		for (h = (struct nlmsghdr *)rcvbuf; NLMSG_OK(h, status); h = NLMSG_NEXT(h, status)) {
+			struct ifaddrmsg *ifa = NULL;
+			struct rtattr *tb[IFA_MAX+1];
+			int len;
+
 			if (h->nlmsg_type == NLMSG_DONE)
 				goto out;
 
@@ -219,60 +224,62 @@ static int _find_myself(struct booth_config *conf, int family,
 				return 0;
 			}
 
-			if (h->nlmsg_type == RTM_NEWADDR) {
-				struct ifaddrmsg *ifa = NLMSG_DATA(h);
-				struct rtattr *tb[IFA_MAX+1];
-				int len = h->nlmsg_len 
-					- NLMSG_LENGTH(sizeof(*ifa));
+			if (h->nlmsg_type != RTM_NEWADDR) {
+				continue;
+			}
 
-				memset(tb, 0, sizeof(tb));
-				parse_rtattr(tb, IFA_MAX, IFA_RTA(ifa), len);
-				memset(ipaddr, 0, BOOTH_IPADDR_LEN);
-				/* prefer IFA_LOCAL if it exists, for p-t-p
-				 * interfaces, otherwise use IFA_ADDRESS */
-				if (tb[IFA_LOCAL]) {
-					memcpy(ipaddr, RTA_DATA(tb[IFA_LOCAL]),
-							BOOTH_IPADDR_LEN);
-				} else if (tb[IFA_ADDRESS]) {
-					memcpy(ipaddr, RTA_DATA(tb[IFA_ADDRESS]),
-							BOOTH_IPADDR_LEN);
-				} else {
-					log_error("failed to copy netlink addr");
-					close(fd);
-					return 0;
+			ifa = NLMSG_DATA(h);
+			len = h->nlmsg_len - NLMSG_LENGTH(sizeof(*ifa));
+
+			memset(tb, 0, sizeof(tb));
+			parse_rtattr(tb, IFA_MAX, IFA_RTA(ifa), len);
+			memset(ipaddr, 0, BOOTH_IPADDR_LEN);
+			/* prefer IFA_LOCAL if it exists, for p-t-p
+			 * interfaces, otherwise use IFA_ADDRESS */
+			if (tb[IFA_LOCAL]) {
+				memcpy(ipaddr, RTA_DATA(tb[IFA_LOCAL]),
+				       BOOTH_IPADDR_LEN);
+			} else if (tb[IFA_ADDRESS]) {
+				memcpy(ipaddr, RTA_DATA(tb[IFA_ADDRESS]),
+				       BOOTH_IPADDR_LEN);
+			} else {
+				log_error("failed to copy netlink addr");
+				close(fd);
+				return 0;
+			}
+
+			/* Try to find the exact address or the address with subnet matching.
+			 * The function find_address will be called for each address received
+			 * from NLMSG_DATA above.
+			 * The exact match will be preferred. If no exact match is found,
+			 * the function find_address will try to return another, most similar
+			 * address (with the longest possible number of same bytes).
+			 */
+			if (ifa->ifa_prefixlen > address_bits_matched) {
+				find_address(conf, ipaddr, ifa->ifa_family,
+					     ifa->ifa_prefixlen, fuzzy_allowed,
+					     &me, &address_bits_matched);
+
+				if (me) {
+					log_debug("found myself at %s (%d bits matched)",
+						  site_string(me), address_bits_matched);
 				}
+			}
+			/* If the previous NLMSG_DATA calls have already allowed us
+			 * to find an address with address_bits_matched matching bits,
+			 * then no other better non-exact address can be found.
+			 * But we can still try to find an exact match, so let us
+			 * call the function find_address with disabled searching of
+			 * similar addresses (fuzzy_allowed == 0)
+			 */
+			else if (ifa->ifa_prefixlen == address_bits_matched) {
+				find_address(conf, ipaddr, ifa->ifa_family,
+					     ifa->ifa_prefixlen, 0 /* fuzzy_allowed */,
+					     &me, &address_bits_matched);
 
-				/* Try to find the exact address or the address with subnet matching.
-				 * The function find_address will be called for each address received
-				 * from NLMSG_DATA above.
-				 * The exact match will be preferred. If no exact match is found,
-				 * the function find_address will try to return another, most similar
-				 * address (with the longest possible number of same bytes). */
-				if (ifa->ifa_prefixlen > address_bits_matched) {
-					find_address(conf, ipaddr,
-						     ifa->ifa_family, ifa->ifa_prefixlen,
-						     fuzzy_allowed, &me, &address_bits_matched);
-
-					if (me) {
-						log_debug("found myself at %s (%d bits matched)",
-								site_string(me), address_bits_matched);
-					}
-				}
-				/* If the previous NLMSG_DATA calls have already allowed us
-				 * to find an address with address_bits_matched matching bits,
-				 * then no other better non-exact address can be found.
-				 * But we can still try to find an exact match, so let us
-				 * call the function find_address with disabled searching of
-				 * similar addresses (fuzzy_allowed == 0) */
-				else if (ifa->ifa_prefixlen == address_bits_matched) {
-					find_address(conf, ipaddr,
-						     ifa->ifa_family, ifa->ifa_prefixlen,
-						     0 /* fuzzy_allowed */, &me, &address_bits_matched);
-
-					if (me) {
-						log_debug("found myself at %s (exact match)",
-								site_string(me));
-					}
+				if (me) {
+					log_debug("found myself at %s (exact match)",
+						  site_string(me));
 				}
 			}
 		}
@@ -944,11 +951,13 @@ static int booth_udp_broadcast_auth(struct booth_config *conf, void *buf, int le
 
 	rvs = 0;
 	FOREACH_NODE(conf, i, site) {
-		if (site != local) {
-			rv = booth_udp_send(conf, site, buf, len);
-			if (!rvs) {
-				rvs = rv;
-			}
+		if (site == local) {
+			continue;
+		}
+
+		rv = booth_udp_send(conf, site, buf, len);
+		if (!rvs) {
+			rvs = rv;
 		}
 	}
 
