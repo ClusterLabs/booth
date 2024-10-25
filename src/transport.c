@@ -455,7 +455,7 @@ static void process_connection(struct booth_config *conf, int ci)
 	}
 
 	header = (struct boothc_header *)msg;
-	if (check_auth(NULL, msg, ntohl(header->length))) {
+	if (check_auth(conf, NULL, msg, ntohl(header->length))) {
 		errc = RLT_AUTH;
 		goto send_err;
 	}
@@ -747,7 +747,8 @@ static int booth_tcp_recv(struct booth_site *from, void *buf, int len)
 	return got;
 }
 
-static int booth_tcp_recv_auth(struct booth_site *from, void *buf, int len)
+static int booth_tcp_recv_auth(struct booth_config *conf, struct booth_site *from,
+			       void *buf, int len)
 {
 	int got, total;
 	int payload_len;
@@ -760,10 +761,13 @@ static int booth_tcp_recv_auth(struct booth_site *from, void *buf, int len)
 	}
 	total = got;
 	if (is_auth_req()) {
-		got = booth_tcp_recv(from, (unsigned char *)buf+payload_len, sizeof(struct hmac));
-		if (got != sizeof(struct hmac) || check_auth(from, buf, len)) {
+		got = booth_tcp_recv(from, (unsigned char *)buf+payload_len,
+				     sizeof(struct hmac));
+
+		if (got != sizeof(struct hmac) || check_auth(conf, from, buf, len)) {
 			return -1;
 		}
+
 		total += got;
 	}
 	return total;
@@ -1024,11 +1028,12 @@ const struct booth_transport booth_transport[TRANSPORT_ENTRIES] = {
 /* verify the validity of timestamp from the header
  * the timestamp needs to be either greater than the one already
  * recorded for the site or, and this is checked for clients,
- * not to be older than booth_conf->maxtimeskew
+ * not to be older than conf->maxtimeskew
  * update the timestamp for the site, if this packet is from a
  * site
  */
-static int verify_ts(struct booth_site *from, void *buf, int len)
+static int verify_ts(struct booth_config *conf, struct booth_site *from,
+		     void *buf, int len)
 {
 	struct boothc_header *h;
 	struct timeval tv, curr_tv, now;
@@ -1044,18 +1049,22 @@ static int verify_ts(struct booth_site *from, void *buf, int len)
 	if (from) {
 		curr_tv.tv_sec = from->last_secs;
 		curr_tv.tv_usec = from->last_usecs;
-		if (timercmp(&tv, &curr_tv, >))
+		if (timercmp(&tv, &curr_tv, >)) {
 			goto accept;
+		}
+
 		log_warn("%s: packet timestamp older than previous one",
 			site_string(from));
 	}
 
 	gettimeofday(&now, NULL);
-	now.tv_sec -= booth_conf->maxtimeskew;
-	if (timercmp(&tv, &now, >))
+	now.tv_sec -= conf->maxtimeskew;
+	if (timercmp(&tv, &now, >)) {
 		goto accept;
+	}
+
 	log_error("%s: packet timestamp older than %d seconds",
-		peer_string(from), booth_conf->maxtimeskew);
+		peer_string(from), conf->maxtimeskew);
 	return -1;
 
 accept:
@@ -1067,15 +1076,17 @@ accept:
 }
 #endif
 
-int check_auth(struct booth_site *from, void *buf, int len)
+int check_auth(struct booth_config *conf, struct booth_site *from, void *buf,
+	       int len)
 {
 	int rv = 0;
 #if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
 	int payload_len;
 	struct hmac *hp;
 
-	if (!is_auth_req())
+	if (!is_auth_req()) {
 		return 0;
+	}
 
 	payload_len = len - sizeof(struct hmac);
 	if (payload_len < 0) {
@@ -1085,9 +1096,9 @@ int check_auth(struct booth_site *from, void *buf, int len)
 	}
 	hp = (struct hmac *)((unsigned char *)buf + payload_len);
 	rv = verify_hmac(buf, payload_len, ntohl(hp->hid), hp->hash,
-		booth_conf->authkey, booth_conf->authkey_len);
+			 conf->authkey, conf->authkey_len);
 	if (!rv) {
-		rv = verify_ts(from, buf, len);
+		rv = verify_ts(conf, from, buf, len);
 	}
 	if (rv != 0) {
 		log_error("%s: failed to authenticate", peer_string(from));
@@ -1148,7 +1159,7 @@ int message_recv(struct booth_config *conf, void *msg, int msglen)
 		return -1;
 	}
 
-	if (check_auth(source, msg, msglen)) {
+	if (check_auth(conf, source, msg, msglen)) {
 		log_error("%s failed to authenticate", site_string(source));
 		source->sec_cnt++;
 		return -1;
