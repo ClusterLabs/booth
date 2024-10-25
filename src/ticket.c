@@ -747,8 +747,8 @@ reply_now:
 	return rc;
 }
 
-int notify_client(struct ticket_config *tk, int client_fd,
-		  struct boothc_ticket_msg *msg)
+int notify_client(struct booth_config *conf, struct ticket_config *tk,
+                  int client_fd, struct boothc_ticket_msg *msg)
 {
 	struct boothc_ticket_msg omsg;
 	void (*deadfn) (int ci);
@@ -824,7 +824,7 @@ int ticket_broadcast(struct ticket_config *tk, cmd_request_t cmd,
    send out the update message to others with the new expiry
    time
 */
-int leader_update_ticket(struct ticket_config *tk)
+int leader_update_ticket(struct booth_config *conf, struct ticket_config *tk)
 {
 	int rv = 0, rv2;
 	timetype now;
@@ -848,13 +848,13 @@ int leader_update_ticket(struct ticket_config *tk)
 		case 0:
 			tk->ticket_updated = 2;
 			tk->outcome = RLT_SUCCESS;
-			foreach_tkt_req(tk, notify_client);
+			foreach_tkt_req(conf, tk, notify_client);
 			break;
 
 		case 1:
 			if (tk->outcome != RLT_CIB_PENDING) {
 				tk->outcome = RLT_CIB_PENDING;
-				foreach_tkt_req(tk, notify_client);
+				foreach_tkt_req(conf, tk, notify_client);
 			}
 			break;
 
@@ -963,7 +963,7 @@ static int postpone_ticket_processing(struct ticket_config *tk)
 
 #define has_extprog_exited(tk) ((tk)->clu_test.progstate == EXTPROG_EXITED)
 
-static void process_next_state(struct ticket_config *tk)
+static void process_next_state(struct booth_config *conf, struct ticket_config *tk)
 {
 	int rv;
 
@@ -977,7 +977,7 @@ static void process_next_state(struct ticket_config *tk)
 			rv = acquire_ticket(tk, OR_ADMIN);
 			if (rv != 0) { /* external program failed */
 				tk->outcome = rv;
-				foreach_tkt_req(tk, notify_client);
+				foreach_tkt_req(conf, tk, notify_client);
 			}
 		} else {
 			log_reacquire_reason(tk);
@@ -989,7 +989,7 @@ static void process_next_state(struct ticket_config *tk)
 		no_resends(tk);
 		start_revoke_ticket(tk);
 		tk->outcome = RLT_SUCCESS;
-		foreach_tkt_req(tk, notify_client);
+		foreach_tkt_req(conf, tk, notify_client);
 		break;
 
 	/* wanting to be follower is not much of an ambition; no
@@ -1046,7 +1046,7 @@ static void next_action(struct booth_config *conf, struct ticket_config *tk)
 			rv = acquire_ticket(tk, OR_ADMIN);
 			if (rv != 0) { /* external program failed */
 				tk->outcome = rv;
-				foreach_tkt_req(tk, notify_client);
+				foreach_tkt_req(conf, tk, notify_client);
 			}
 		} else {
 			if (tk->acks_expected) {
@@ -1085,7 +1085,7 @@ static void next_action(struct booth_config *conf, struct ticket_config *tk)
 				rv = acquire_ticket(tk, OR_ADMIN);
 				if (rv != 0) { /* external program failed */
 					tk->outcome = rv;
-					foreach_tkt_req(tk, notify_client);
+					foreach_tkt_req(conf, tk, notify_client);
 				}
 			} else {
 				/* Otherwise, just send ACKs if needed */
@@ -1098,7 +1098,7 @@ static void next_action(struct booth_config *conf, struct ticket_config *tk)
 
 	case ST_CANDIDATE:
 		/* elections timed out? */
-		elections_end(tk);
+		elections_end(conf, tk);
 		break;
 
 	case ST_LEADER:
@@ -1106,7 +1106,7 @@ static void next_action(struct booth_config *conf, struct ticket_config *tk)
 		if (tk->acks_expected) {
 			handle_resends(conf, tk);
 			if (majority_of_bits(tk, tk->acks_received)) {
-				leader_update_ticket(tk);
+				leader_update_ticket(conf, tk);
 			}
 		} else if (!do_ext_prog(tk, 1)) {
 			/* this is ticket renewal, run local test */
@@ -1143,7 +1143,7 @@ static void ticket_cron(struct booth_config *conf, struct ticket_config *tk)
 	 * also used for revokes which had to be delayed
 	 */
 	if (tk->next_state) {
-		process_next_state(tk);
+		process_next_state(conf, tk);
 		goto out;
 	}
 
@@ -1257,7 +1257,7 @@ int ticket_recv(struct booth_config *conf, void *buf, struct booth_site *source)
 	}
 
 	update_acks(tk, source, leader, msg);
-	return raft_answer(tk, source, leader, msg);
+	return raft_answer(conf, tk, source, leader, msg);
 }
 
 static void log_next_wakeup(struct ticket_config *tk)

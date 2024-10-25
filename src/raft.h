@@ -30,14 +30,13 @@ typedef enum {
 
 struct ticket_config;
 
-int raft_answer(struct ticket_config *tk,
-		struct booth_site *from,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg);
+int raft_answer(struct booth_config *conf, struct ticket_config *tk,
+	        struct booth_site *from, struct booth_site *leader,
+	        struct boothc_ticket_msg *msg);
 
 int new_election(struct ticket_config *tk,
 		struct booth_site *new_leader, int update_term, cmd_reason_t reason);
-void elections_end(struct ticket_config *tk);
+void elections_end(struct booth_config *conf, struct ticket_config *tk);
 
 
 #endif /* _RAFT_H */

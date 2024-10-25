@@ -212,11 +212,22 @@ int send_reject(struct booth_site *dest, struct ticket_config *tk,
 	cmd_result_t code, struct boothc_ticket_msg *in_msg);
 int send_msg (int cmd, struct ticket_config *tk,
 	struct booth_site *dest, struct boothc_ticket_msg *in_msg);
-int notify_client(struct ticket_config *tk, int client_fd,
-	struct boothc_ticket_msg *msg);
+
+/**
+ * @internal
+ * Notify client at particular socket, regarding particular ticket
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[in]     tk   ticket at hand
+ * @param[in]     fd   file descriptor of the socket to respond to
+ * @param[in]     msg  input message being responded to
+ */
+int notify_client(struct booth_config *conf, struct ticket_config *tk,
+                  int client_fd, struct boothc_ticket_msg *msg);
+
 int ticket_broadcast(struct ticket_config *tk, cmd_request_t cmd, cmd_request_t expected_reply, cmd_result_t res, cmd_reason_t reason);
 
-int leader_update_ticket(struct ticket_config *tk);
+int leader_update_ticket(struct booth_config *conf, struct ticket_config *tk);
 void add_random_delay(struct ticket_config *tk);
 void schedule_election(struct ticket_config *tk, cmd_reason_t reason);
 

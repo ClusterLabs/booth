@@ -64,7 +64,8 @@ static void del_req(GList *lp)
 	req_l = g_list_delete_link(req_l, lp);
 }
 
-void foreach_tkt_req(struct ticket_config *tk, req_fp f)
+void foreach_tkt_req(struct booth_config *conf, struct ticket_config *tk,
+		     req_fp f)
 {
 	GList *lp, *next;
 	struct request *rp;
@@ -74,7 +75,7 @@ void foreach_tkt_req(struct ticket_config *tk, req_fp f)
 		next = g_list_next(lp);
 		rp = (struct request *)lp->data;
 		if (rp->tk == tk &&
-				(f)(rp->tk, rp->client_fd, rp->msg) == 0) {
+				(f)(conf, rp->tk, rp->client_fd, rp->msg) == 0) {
 			log_debug("remove request for client %d", rp->client_fd);
 			del_req(lp); /* don't need this request anymore */
 		}

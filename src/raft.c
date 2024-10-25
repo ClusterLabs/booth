@@ -210,7 +210,7 @@ static struct booth_site *majority_votes(struct ticket_config *tk)
 }
 
 
-void elections_end(struct ticket_config *tk)
+void elections_end(struct booth_config *conf, struct ticket_config *tk)
 {
 	struct booth_site *new_leader;
 
@@ -230,7 +230,7 @@ void elections_end(struct ticket_config *tk)
 	} else {
 		tk_log_info("nobody won elections, new elections");
 		tk->outcome = RLT_MORE;
-		foreach_tkt_req(tk, notify_client);
+		foreach_tkt_req(conf, tk, notify_client);
 		if (!new_election(tk, NULL, is_tie(tk) ? 2 : 0, OR_AGAIN)) {
 			ticket_activate_timeout(tk);
 		}
@@ -433,12 +433,9 @@ static int process_REVOKE (
 
 
 /* For leader. */
-static int process_ACK(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-	       )
+static int process_ACK(struct booth_config *conf, struct ticket_config *tk,
+		       struct booth_site *sender, struct booth_site *leader,
+		       struct boothc_ticket_msg *msg)
 {
 	uint32_t term;
 	int req;
@@ -478,7 +475,7 @@ static int process_ACK(
 			/* OK, at least half of the nodes are reachable;
 			 * Update the ticket and send update messages out
 			 */
-			return leader_update_ticket(tk);
+			return leader_update_ticket(conf, tk);
 		}
 	}
 
@@ -486,12 +483,9 @@ static int process_ACK(
 }
 
 
-static int process_VOTE_FOR(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-		)
+static int process_VOTE_FOR(struct booth_config *conf, struct ticket_config *tk,
+			    struct booth_site *sender, struct booth_site *leader,
+			    struct boothc_ticket_msg *msg)
 {
 	if (leader == no_leader) {
 		/* leader wants to step down? */
@@ -533,7 +527,7 @@ static int process_VOTE_FOR(
 	 * wait for timeout in ticket_cron */
 	if (!tk->acks_expected) {
 		/* §5.2 */
-		elections_end(tk);
+		elections_end(conf, tk);
 	}
 
 	return 0;
@@ -916,12 +910,9 @@ static int process_MY_INDEX (
 }
 
 
-int raft_answer(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-	       )
+int raft_answer(struct booth_config *conf, struct ticket_config *tk,
+	        struct booth_site *sender, struct booth_site *leader,
+	        struct boothc_ticket_msg *msg)
 {
 	int cmd, req;
 	int rv;
@@ -952,12 +943,12 @@ int raft_answer(
 		rv = answer_REQ_VOTE(tk, sender, leader, msg);
 		break;
 	case OP_VOTE_FOR:
-		rv = process_VOTE_FOR(tk, sender, leader, msg);
+		rv = process_VOTE_FOR(conf, tk, sender, leader, msg);
 		break;
 	case OP_ACK:
 		if (tk->leader == local &&
 				tk->state == ST_LEADER)
-			rv = process_ACK(tk, sender, leader, msg);
+			rv = process_ACK(conf, tk, sender, leader, msg);
 		break;
 	case OP_HEARTBEAT:
 		if ((tk->leader != local || !term_time_left(tk)) &&
