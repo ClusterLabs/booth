@@ -468,7 +468,7 @@ static void process_connection(struct booth_config *conf, int ci)
 		ticket_answer_list(conf, req_cl->fd);
 		goto kill;
 	case CMD_PEERS:
-		list_peers(req_cl->fd);
+		list_peers(conf, req_cl->fd);
 		goto kill;
 
 	case CMD_GRANT:
