@@ -182,7 +182,7 @@ static int _find_myself(struct booth_config *conf, int family,
 		return 0;
 	}
 
-	(void)setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+	setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
 
 	memset(&nladdr, 0, sizeof(nladdr));
 	nladdr.nl_family = AF_NETLINK;
@@ -554,13 +554,13 @@ static void process_tcp_listener(struct booth_config *conf, int ci)
 			  fd, errno);
 		return;
 	}
-	(void)setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&one, sizeof(one));
+	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&one, sizeof(one));
 
 	flags = fcntl(fd, F_GETFL, 0);
 	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
 		log_error("process_tcp_listener: fcntl O_NONBLOCK error %d %d",
 			  fd, errno);
-		(void)close(fd);
+		close(fd);
 		return;
 	}
 
