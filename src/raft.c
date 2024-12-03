@@ -58,13 +58,12 @@ inline static void record_vote(struct ticket_config *tk,
 	if (!tk->votes_for[who->index]) {
 		tk->votes_for[who->index] = vote;
 		tk->votes_received |= who->bitmask;
-	} else {
-		if (tk->votes_for[who->index] != vote)
-			tk_log_warn("%s voted previously "
-					"for %s and now wants to vote for %s (ignored)",
-					site_string(who),
-					site_string(tk->votes_for[who->index]),
-					site_string(vote));
+	} else if (tk->votes_for[who->index] != vote) {
+		tk_log_warn("%s voted previously "
+			    "for %s and now wants to vote for %s (ignored)",
+			    site_string(who),
+			    site_string(tk->votes_for[who->index]),
+			    site_string(vote));
 	}
 }
 
@@ -260,25 +259,25 @@ static int newer_term(struct ticket_config *tk,
 
 	term = ntohl(msg->ticket.term);
 	/* §5.1 */
-	if (term > tk->current_term) {
-		set_state(tk, ST_FOLLOWER);
-		if (!in_election) {
-			set_leader(tk, leader);
-			tk_log_info("from %s: higher term %d vs. %d, following %s",
-					site_string(sender),
-					term, tk->current_term,
-					ticket_leader_string(tk));
-		} else {
-			tk_log_debug("from %s: higher term %d vs. %d (election)",
-					site_string(sender),
-					term, tk->current_term);
-		}
-
-		tk->current_term = term;
-		return 1;
+	if (term <= tk->current_term) {
+		return 0;
 	}
 
-	return 0;
+	set_state(tk, ST_FOLLOWER);
+	if (!in_election) {
+		set_leader(tk, leader);
+		tk_log_info("from %s: higher term %d vs. %d, following %s",
+				site_string(sender),
+				term, tk->current_term,
+				ticket_leader_string(tk));
+	} else {
+		tk_log_debug("from %s: higher term %d vs. %d (election)",
+				site_string(sender),
+				term, tk->current_term);
+	}
+
+	tk->current_term = term;
+	return 1;
 }
 
 static int msg_term_invalid(struct ticket_config *tk,
@@ -290,13 +289,13 @@ static int msg_term_invalid(struct ticket_config *tk,
 
 	term = ntohl(msg->ticket.term);
 	/* §5.1 */
-	if (is_term_invalid(tk, term)) {
-		tk_log_info("got invalid term from %s "
-			"(%d), ignoring", site_string(sender), term);
-		return 1;
+	if (!is_term_invalid(tk, term)) {
+		return 0;
 	}
 
-	return 0;
+	tk_log_info("got invalid term from %s "
+		"(%d), ignoring", site_string(sender), term);
+	return 1;
 }
 
 static int term_too_low(struct booth_config *conf, struct ticket_config *tk,
@@ -307,16 +306,16 @@ static int term_too_low(struct booth_config *conf, struct ticket_config *tk,
 
 	term = ntohl(msg->ticket.term);
 	/* §5.1 */
-	if (term < tk->current_term) {
-		tk_log_info("sending reject to %s, its term too low "
-			"(%d vs. %d)", site_string(sender),
-			term, tk->current_term
-			);
-		send_reject(conf, sender, tk, RLT_TERM_OUTDATED, msg);
-		return 1;
+	if (term >= tk->current_term) {
+		return 0;
 	}
 
-	return 0;
+	tk_log_info("sending reject to %s, its term too low "
+		"(%d vs. %d)", site_string(sender),
+		term, tk->current_term
+		);
+	send_reject(conf, sender, tk, RLT_TERM_OUTDATED, msg);
+	return 1;
 }
 
 
@@ -405,13 +404,12 @@ static int process_REVOKE(struct booth_config *conf, struct ticket_config *tk,
 					"but it is not granted there (ignoring)",
 					site_string(sender));
 			return -1;
-		} else {
-			rv = process_REVOKE_for_manual_ticket(conf, tk, sender, msg);
-
-			// Ticket data stored in this site is not modified. This means
-			// that this site will still follow another leader (the one which
-			// has not been revoked) or be a leader itself.
 		}
+
+		// Ticket data stored in this site is not modified. This means
+		// that this site will still follow another leader (the one which
+		// has not been revoked) or be a leader itself.
+		rv = process_REVOKE_for_manual_ticket(conf, tk, sender, msg);
 	} else if (tk->state != ST_FOLLOWER) {
 		tk_log_error("unexpected ticket revoke from %s "
 				"(in state %s) (ignoring)",
@@ -468,14 +466,12 @@ static int process_ACK(struct booth_config *conf, struct ticket_config *tk,
 	req = ntohl(msg->header.request);
 	if ((req == OP_UPDATE || req == OP_HEARTBEAT) &&
 			term == tk->current_term &&
-			leader == tk->leader) {
-
-		if (majority_of_bits(tk, tk->acks_received)) {
-			/* OK, at least half of the nodes are reachable;
-			 * Update the ticket and send update messages out
-			 */
-			return leader_update_ticket(conf, tk);
-		}
+			leader == tk->leader &&
+			majority_of_bits(tk, tk->acks_received)) {
+		/* OK, at least half of the nodes are reachable;
+		 * Update the ticket and send update messages out
+		 */
+		return leader_update_ticket(conf, tk);
 	}
 
 	return 0;
@@ -645,23 +641,26 @@ static int test_reason(
 	int reason;
 
 	reason = ntohl(msg->header.reason);
-	if (reason == OR_TKT_LOST) {
-		if (tk->state == ST_INIT &&
-				tk->leader == no_leader) {
-			tk_log_warn("%s claims that the ticket is lost, "
-					"but it's in %s state (reject sent)",
-					site_string(sender),
-					state_to_string(tk->state)
-				);
-			return RLT_YOU_OUTDATED;
-		}
-		if (ticket_seems_ok(tk)) {
-			tk_log_warn("%s claims that the ticket is lost, "
-					"but it is ok here (reject sent)",
-					site_string(sender));
-			return RLT_TERM_STILL_VALID;
-		}
+	if (reason != OR_TKT_LOST) {
+		return 0;
 	}
+
+	if (tk->state == ST_INIT &&
+			tk->leader == no_leader) {
+		tk_log_warn("%s claims that the ticket is lost, "
+				"but it's in %s state (reject sent)",
+				site_string(sender),
+				state_to_string(tk->state)
+			);
+		return RLT_YOU_OUTDATED;
+	}
+	if (ticket_seems_ok(tk)) {
+		tk_log_warn("%s claims that the ticket is lost, "
+				"but it is ok here (reject sent)",
+				site_string(sender));
+		return RLT_TERM_STILL_VALID;
+	}
+
 	return 0;
 }
 
@@ -883,16 +882,14 @@ static int process_MY_INDEX(struct booth_config *conf, struct ticket_config *tk,
 					site_string(leader)
 					);
 			return leader_handle_newer_ticket(tk, sender, leader, msg);
-		} else {
-			/* we have the ticket and we don't care */
-			return 0;
 		}
-	} else if (tk->state == ST_CANDIDATE) {
-		if (leader == local) {
-			/* a belated MY_INDEX, we're already trying to get the
-			 * ticket */
-			return 0;
-		}
+
+		/* we have the ticket and we don't care */
+		return 0;
+	} else if (tk->state == ST_CANDIDATE && leader == local) {
+		/* a belated MY_INDEX, we're already trying to get the
+		 * ticket */
+		return 0;
 	}
 
 	/* their ticket is either newer or not expired, don't
