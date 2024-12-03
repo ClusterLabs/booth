@@ -254,8 +254,9 @@ static int newer_term(struct ticket_config *tk,
 	uint32_t term;
 
 	/* it may happen that we hear about our newer term */
-	if (leader == local)
+	if (leader == local) {
 		return 0;
+	}
 
 	term = ntohl(msg->ticket.term);
 	/* §5.1 */
@@ -460,8 +461,9 @@ static int process_ACK(struct booth_config *conf, struct ticket_config *tk,
 
 	/* if the ticket is to be revoked, further processing is not
 	 * interesting (and dangerous) */
-	if (tk->next_state == ST_INIT || tk->state == ST_INIT)
+	if (tk->next_state == ST_INIT || tk->state == ST_INIT) {
 		return 0;
+	}
 
 	req = ntohl(msg->header.request);
 	if ((req == OP_UPDATE || req == OP_HEARTBEAT) &&
@@ -618,15 +620,17 @@ static int ticket_seems_ok(struct ticket_config *tk)
 	int left;
 
 	left = term_time_left(tk);
-	if (!left)
+	if (!left) {
 		return 0; /* quite sure */
-	if (tk->state == ST_CANDIDATE)
+	} else if (tk->state == ST_CANDIDATE) {
 		return 0; /* in state of flux */
-	if (tk->state == ST_LEADER)
+	} else if (tk->state == ST_LEADER) {
 		return 1; /* quite sure */
-	if (tk->state == ST_FOLLOWER &&
-			left >= tk->term_duration/3)
+	} else if (tk->state == ST_FOLLOWER &&
+			left >= tk->term_duration/3) {
 		return 1; /* almost quite sure */
+	}
+
 	return 0;
 }
 
@@ -702,8 +706,9 @@ static int answer_REQ_VOTE(struct booth_config *conf, struct ticket_config *tk,
 	tk->in_election = 1;
 
 	/* reset ticket's leader on not valid tickets */
-	if (!valid)
+	if (!valid) {
 		set_leader(tk, NULL);
+	}
 
 	/* if it's a newer term or ... */
 	if (newer_term(tk, sender, leader, msg, 1)) {
@@ -734,8 +739,9 @@ int new_election(struct booth_config *conf, struct ticket_config *tk,
 {
 	struct booth_site *new_leader;
 
-	if (local->type != SITE)
+	if (local->type != SITE) {
 		return 0;
+	}
 
 	if ((is_reason(OR_TKT_LOST, tk) || is_reason(OR_STEPDOWN, tk)) &&
 			check_attr_prereq(tk, GRANT_AUTO)) {
@@ -745,8 +751,9 @@ int new_election(struct booth_config *conf, struct ticket_config *tk,
 	}
 
 	/* elections were already started, but not yet finished/timed out */
-	if (is_time_set(&tk->election_end) && !is_past(&tk->election_end))
+	if (is_time_set(&tk->election_end) && !is_past(&tk->election_end)) {
 		return 1;
+	}
 
 	if (ANYDEBUG) {
 		int tdiff;
@@ -914,21 +921,23 @@ int raft_answer(struct booth_config *conf, struct ticket_config *tk,
 	cmd = ntohl(msg->header.cmd);
 	req = ntohl(msg->header.request);
 
-	if (req)
+	if (req) {
 		tk_log_debug("got %s (req %s) from %s",
 				state_to_string(cmd),
 				state_to_string(req),
 				site_string(sender));
-	else
+	} else {
 		tk_log_debug("got %s from %s",
 				state_to_string(cmd),
 				site_string(sender));
+	}
 
 	/* don't process tickets with invalid term
 	 */
 	if (cmd != OP_STATUS &&
-			msg_term_invalid(tk, sender, leader, msg))
+			msg_term_invalid(tk, sender, leader, msg)) {
 		return 0;
+	}
 
 
 	switch (cmd) {
@@ -940,15 +949,16 @@ int raft_answer(struct booth_config *conf, struct ticket_config *tk,
 		break;
 	case OP_ACK:
 		if (tk->leader == local &&
-				tk->state == ST_LEADER)
+				tk->state == ST_LEADER) {
 			rv = process_ACK(conf, tk, sender, leader, msg);
+		}
 		break;
 	case OP_HEARTBEAT:
 		if ((tk->leader != local || !term_time_left(tk)) &&
 				(tk->state == ST_INIT || tk->state == ST_FOLLOWER ||
-				tk->state == ST_CANDIDATE))
+				tk->state == ST_CANDIDATE)) {
 			rv = answer_HEARTBEAT(conf, tk, sender, leader, msg);
-		else {
+		} else {
 			tk_log_warn("unexpected message %s, from %s",
 				state_to_string(cmd),
 				site_string(sender));
