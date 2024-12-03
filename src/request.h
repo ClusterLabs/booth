@@ -44,12 +44,25 @@ struct request {
 	void *msg;
 };
 
-typedef int (*req_fp)(
-	struct ticket_config *, int, struct boothc_ticket_msg *);
+typedef int (*req_fp)(struct booth_config *, struct ticket_config *, int,
+		      struct boothc_ticket_msg *);
 
 void *add_req(struct ticket_config *tk, struct client *req_client,
 	struct boothc_ticket_msg *msg);
-void foreach_tkt_req(struct ticket_config *tk, req_fp f);
+
+/**
+ * @internal
+ * Handle all pending requests for given ticket using function @p f
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[in]     tk   ticket at hand
+ * @param[in]     f    handling function
+ *
+ * @return 1 on success, 0 when not done with the message, yet
+ */
+void foreach_tkt_req(struct booth_config *conf, struct ticket_config *tk,
+		     req_fp f);
+
 int get_req_id(const void *rp);
 
 #endif /* _REQUEST_H */

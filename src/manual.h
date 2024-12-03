@@ -23,13 +23,14 @@
 
 struct ticket_config;
 
-int manual_selection(struct ticket_config *tk,
-		struct booth_site *new_leader, int update_term, cmd_reason_t reason);
+int manual_selection(struct booth_config *conf, struct ticket_config *tk,
+		     struct booth_site *new_leader, int update_term,
+		     cmd_reason_t reason);
 
-int process_REVOKE_for_manual_ticket (
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct boothc_ticket_msg *msg);
+int process_REVOKE_for_manual_ticket(struct booth_config *conf,
+				     struct ticket_config *tk,
+				     struct booth_site *sender,
+				     struct boothc_ticket_msg *msg);
 
 
 #endif /* _MANUAL_H */

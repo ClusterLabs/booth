@@ -184,9 +184,10 @@ int do_attr_command(struct booth_config *conf, cmd_request_t cmd)
 	if (rv < 0)
 		goto out_close;
 
-	rv = tpt->send(site, &cl.attr_msg, sendmsglen(&cl.attr_msg));
-	if (rv < 0)
+	rv = tpt->send(conf, site, &cl.attr_msg, sendmsglen(&cl.attr_msg));
+	if (rv < 0) {
 		goto out_close;
+	}
 
 	msg = malloc(MAX_MSG_LEN);
 	if (!msg) {
@@ -346,7 +347,8 @@ append_attr(gpointer key, gpointer value, gpointer user_data)
 }
 
 
-static cmd_result_t attr_get(struct ticket_config *tk, int fd, struct boothc_attr_msg *msg)
+static cmd_result_t attr_get(struct booth_config *conf, struct ticket_config *tk,
+			     int fd, struct boothc_attr_msg *msg)
 {
 	cmd_result_t rv = RLT_SUCCESS;
 	struct boothc_hdr_msg hdr;
@@ -357,12 +359,15 @@ static cmd_result_t attr_get(struct ticket_config *tk, int fd, struct boothc_att
 	 * lookup attr
 	 * send value
 	 */
-	if (!tk->attr)
+	if (!tk->attr) {
 		return RLT_NO_SUCH_ATTR;
+	}
 
 	a = (struct geo_attr *)g_hash_table_lookup(tk->attr, msg->attr.name);
-	if (!a)
+	if (!a) {
 		return RLT_NO_SUCH_ATTR;
+	}
+
 	attr_val = g_string_new(NULL);
 	if (!attr_val) {
 		log_error("out of memory");
@@ -371,14 +376,20 @@ static cmd_result_t attr_get(struct ticket_config *tk, int fd, struct boothc_att
 	g_string_printf(attr_val, "%s\n", a->val);
 	init_header(&hdr.header, ATTR_GET, 0, 0, RLT_SUCCESS, 0,
 		sizeof(hdr) + attr_val->len);
-	if (send_header_plus(fd, &hdr, attr_val->str, attr_val->len))
+
+	if (send_header_plus(conf, fd, &hdr, attr_val->str, attr_val->len)) {
 		rv = RLT_SYNC_FAIL;
-	if (attr_val)
+	}
+
+	if (attr_val) {
 		g_string_free(attr_val, TRUE);
+	}
+
 	return rv;
 }
 
-static cmd_result_t attr_list(struct ticket_config *tk, int fd, struct boothc_attr_msg *msg)
+static cmd_result_t attr_list(struct booth_config *conf, struct ticket_config *tk,
+			      int fd, struct boothc_attr_msg *msg)
 {
 	GString *data;
 	cmd_result_t rv;
@@ -399,10 +410,12 @@ static cmd_result_t attr_list(struct ticket_config *tk, int fd, struct boothc_at
 
 	init_header(&hdr.header, ATTR_LIST, 0, 0, RLT_SUCCESS, 0,
 		sizeof(hdr) + data->len);
-	rv = send_header_plus(fd, &hdr, data->str, data->len);
+	rv = send_header_plus(conf, fd, &hdr, data->str, data->len);
 
-	if (data)
+	if (data) {
 		g_string_free(data, TRUE);
+	}
+
 	return rv;
 }
 
@@ -426,14 +439,18 @@ int process_attr_request(struct booth_config *conf, struct client *req_client,
 
 	switch (cmd) {
 	case ATTR_LIST:
-		rv = attr_list(tk, req_client->fd, msg);
-		if (rv)
+		rv = attr_list(conf, tk, req_client->fd, msg);
+		if (rv) {
 			goto reply_now;
+		}
+
 		return 1;
 	case ATTR_GET:
-		rv = attr_get(tk, req_client->fd, msg);
-		if (rv)
+		rv = attr_get(conf, tk, req_client->fd, msg);
+		if (rv) {
 			goto reply_now;
+		}
+
 		return 1;
 	case ATTR_SET:
 		rv = attr_set(tk, msg);
@@ -445,7 +462,7 @@ int process_attr_request(struct booth_config *conf, struct client *req_client,
 
 reply_now:
 	init_header(&hdr.header, CL_RESULT, 0, 0, rv, 0, sizeof(hdr));
-	send_header_plus(req_client->fd, &hdr, NULL, 0);
+	send_header_plus(conf, req_client->fd, &hdr, NULL, 0);
 	return 1;
 }
 

@@ -30,11 +30,13 @@
  * and the current node doesn't have to wait for any responses
  * from other sites.
  */
-int manual_selection(struct ticket_config *tk,
-	struct booth_site *preference, int update_term, cmd_reason_t reason)
+int manual_selection(struct booth_config *conf, struct ticket_config *tk,
+		     struct booth_site *preference, int update_term,
+		     cmd_reason_t reason)
 {
-	if (local->type != SITE)
+	if (local->type != SITE) {
 		return 0;
+	}
 
 	tk_log_debug("starting manual selection (caused by %s %s)",
 				state_to_string(reason),
@@ -56,7 +58,7 @@ int manual_selection(struct ticket_config *tk,
 	save_committed_tkt(tk);
 
 	// Inform others about the new leader
-	ticket_broadcast(tk, OP_HEARTBEAT, OP_ACK, RLT_SUCCESS, 0);
+	ticket_broadcast(conf, tk, OP_HEARTBEAT, OP_ACK, RLT_SUCCESS, 0);
 	tk->ticket_updated = 0;
 
 	return 0;
@@ -66,27 +68,27 @@ int manual_selection(struct ticket_config *tk,
  * revoked from another site, which this site doesn't
  * consider as a leader.
  */
-int process_REVOKE_for_manual_ticket (
-	struct ticket_config *tk,
-	struct booth_site *sender,
-	struct boothc_ticket_msg *msg)
+int process_REVOKE_for_manual_ticket(struct booth_config *conf,
+				     struct ticket_config *tk,
+				     struct booth_site *sender,
+				     struct boothc_ticket_msg *msg)
 {
 	int rv;
 
 	// For manual tickets, we may end up having two leaders.
 	// If one of them is revoked, it will send information 
 	// to all members of the GEO cluster.
-	
+
 	// We may find ourselves here if this particular site
 	// has not been following the leader which had been revoked
 	// (and which had sent this message).
 
 	// We send the ACK, to satisfy the requestor.
-	rv = send_msg(OP_ACK, tk, sender, msg);		
+	rv = send_msg(conf, OP_ACK, tk, sender, msg);
 
 	// Mark this ticket as not granted to the sender anymore.
 	mark_ticket_as_revoked(tk, sender);
-	
+
 	if (tk->state == ST_LEADER) {
 		tk_log_warn("%s wants to revoke ticket, "
 			"but this site is itself a leader",
@@ -94,7 +96,7 @@ int process_REVOKE_for_manual_ticket (
 
 		// Because another leader is presumably stepping down,
 		// let's notify other sites that now we are the only leader.
-		ticket_broadcast(tk, OP_HEARTBEAT, OP_ACK, RLT_SUCCESS, 0);
+		ticket_broadcast(conf, tk, OP_HEARTBEAT, OP_ACK, RLT_SUCCESS, 0);
 	} else {
 		tk_log_warn("%s wants to revoke ticket, "
 			"but this site is not following it",

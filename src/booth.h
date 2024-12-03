@@ -355,7 +355,15 @@ int client_add(int fd, const struct booth_transport *tpt,
 int find_client_by_fd(int fd);
 void safe_copy(char *dest, char *value, size_t buflen, const char *description);
 int update_authkey(void);
-void list_peers(int fd);
+
+/**
+ * @internal
+ * Response to "get all servers we know about"
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[in]     fd   file descriptor of the socket to respond to
+ */
+void list_peers(struct booth_config *conf, int fd);
 
 
 struct command_line {

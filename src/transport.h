@@ -47,12 +47,12 @@ struct booth_transport {
 	const char *name;
 	int (*init) (void *);
 	int (*open) (struct booth_site *);
-	int (*send) (struct booth_site *, void *, int);
-	int (*send_auth) (struct booth_site *, void *, int);
+	int (*send) (struct booth_config *, struct booth_site *, void *, int);
+	int (*send_auth) (struct booth_config *, struct booth_site *, void *, int);
 	int (*recv) (struct booth_site *, void *, int);
 	int (*recv_auth) (struct booth_site *, void *, int);
 	int (*broadcast) (void *, int);
-	int (*broadcast_auth) (void *, int);
+	int (*broadcast_auth) (struct booth_config *, void *, int);
 	int (*close) (struct booth_site *);
 	int (*exit) (void);
 };
@@ -76,11 +76,20 @@ int read_client(struct client *req_cl);
 int check_boothc_header(struct boothc_header *data, int len_incl_data);
 
 int setup_tcp_listener(int test_only);
-int booth_udp_send(struct booth_site *to, void *buf, int len);
-int booth_udp_send_auth(struct booth_site *to, void *buf, int len);
 
-int booth_tcp_open(struct booth_site *to);
-int booth_tcp_send(struct booth_site *to, void *buf, int len);
+/**
+ * @internal
+ * Send data, with authentication added
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[in]     to   site structure of the recipient
+ * @param[in]     buf  message itself
+ * @param[in]     len  length of #buf
+ *
+ * @return see @add_hmac and @booth_udp_send
+ */
+int booth_udp_send_auth(struct booth_config *conf, struct booth_site *to,
+			void *buf, int len);
 
 /**
  * @internal
@@ -102,11 +111,36 @@ inline static void * node_to_addr_pointer(struct booth_site *node) {
 	return NULL;
 }
 
-int send_data(int fd, void *data, int datalen);
-int send_header_plus(int fd, struct boothc_hdr_msg *hdr, void *data, int len);
-#define send_client_msg(fd, msg) send_data(fd, msg, sendmsglen(msg))
+/**
+ * @internal
+ * Send data, with authentication added
+ *
+ * @param[in,out] conf    config object to refer to
+ * @param[in]     fd      descriptor of the socket to respond to
+ * @param[in]     data    message itself
+ * @param[in]     datalen length of #data
+ *
+ * @return 0 on success or negative value (-1 or -errno) on error
+ */
+int send_data(struct booth_config *conf, int fd, void *data, int datalen);
 
-int add_hmac(void *data, int len);
+/**
+ * @internal
+ * First stage of incoming datagram handling (authentication)
+ *
+ * @param[in,out] conf config object to refer to
+ * @param[in]     fd   descriptor of the socket to respond to
+ * @param[in]     hdr  message header
+ * @param[in]     data message itself
+ * @param[in]     len  length of @data
+ *
+ * @return see #send_data and #do_write
+ */
+int send_header_plus(struct booth_config *conf, int fd,
+		     struct boothc_hdr_msg *hdr, void *data, int len);
+
+#define send_client_msg(conf, fd, msg) send_data(conf, fd, msg, sendmsglen(msg))
+
 int check_auth(struct booth_site *from, void *buf, int len);
 
 #endif /* _TRANSPORT_H */
