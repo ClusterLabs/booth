@@ -211,7 +211,7 @@ int do_attr_command(struct booth_config *conf, cmd_request_t cmd)
 		goto out_close;
 	}
 
-	if (check_auth(site, msg, len)) {
+	if (check_auth(conf, site, msg, len)) {
 		log_error("%s failed to authenticate", site_string(site));
 		rv = -1;
 		goto out_close;

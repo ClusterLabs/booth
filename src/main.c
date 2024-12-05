@@ -725,7 +725,7 @@ static int query_get_string_answer(cmd_request_t cmd)
 	if (rv < 0)
 		goto out_close;
 
-	rv = tpt->recv_auth(site, &reply, sizeof(reply));
+	rv = tpt->recv_auth(booth_conf, site, &reply, sizeof(reply));
 	if (rv < 0)
 		goto out_close;
 
@@ -828,7 +828,7 @@ redirect:
 	}
 
 read_more:
-	rv = tpt->recv_auth(site, &reply, sizeof(reply));
+	rv = tpt->recv_auth(booth_conf, site, &reply, sizeof(reply));
 	if (rv < 0) {
 		/* print any errors depending on the code sent by the
 		 * server */
