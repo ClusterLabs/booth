@@ -149,6 +149,7 @@ static int find_address(struct booth_config *conf,
 static int _find_myself(struct booth_config *conf, int family,
 			struct booth_site **mep, int fuzzy_allowed)
 {
+	int rc;
 	int fd;
 	struct sockaddr_nl nladdr;
 	struct booth_site *me;
@@ -175,7 +176,12 @@ static int _find_myself(struct booth_config *conf, int family,
 		return 0;
 	}
 
-	setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+	rc = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+	if (rc == -1) {
+		log_error("setsockopt error %d %d", fd, errno);
+		close(fd);
+		return 0;
+	}
 
 	memset(&nladdr, 0, sizeof(nladdr));
 	nladdr.nl_family = AF_NETLINK;
@@ -530,6 +536,7 @@ kill:
 
 static void process_tcp_listener(struct booth_config *conf, int ci)
 {
+	int rc;
 	int fd, i, flags, one = 1;
 	socklen_t addrlen = sizeof(struct sockaddr);
 	struct sockaddr addr;
@@ -539,7 +546,13 @@ static void process_tcp_listener(struct booth_config *conf, int ci)
 		log_error("process_tcp_listener: accept error %d %d", fd, errno);
 		return;
 	}
-	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one));
+
+	rc = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one));
+	if (rc == -1) {
+		log_error("process_tcp_listener: setsockopt error %d %d", fd, errno);
+		close(fd);
+		return;
+	}
 
 	flags = fcntl(fd, F_GETFL, 0);
 	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
