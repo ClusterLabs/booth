@@ -1,17 +1,17 @@
-/* 
+/*
  * Copyright (C) 2011 Jiaju Zhang <jjzhang@suse.de>
  * Copyright (C) 2013-2014 Philipp Marek <philipp.marek@linbit.com>
- * 
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
  * License as published by the Free Software Foundation; either
  * version 2 of the License, or (at your option) any later version.
- * 
+ *
  * This software is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License along
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
@@ -20,6 +20,7 @@
 #include "b_config.h"
 
 #include <string.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
@@ -49,8 +50,6 @@
 #define SOCKET_BUFFER_SIZE	160000
 #define FRAME_SIZE_MAX		10000
 
-
-
 struct booth_site *local = NULL;
 
 /* function to be called when handling booth-group-internal messages;
@@ -61,13 +60,14 @@ struct booth_site *local = NULL;
  * address if this is available */
 static int (*deliver_fn) (struct booth_config *conf, void *msg, int msglen);
 
-
 static void parse_rtattr(struct rtattr *tb[],
 			 int max, struct rtattr *rta, int len)
 {
 	while (RTA_OK(rta, len)) {
-		if (rta->rta_type <= max)
+		if (rta->rta_type <= max) {
 			tb[rta->rta_type] = rta;
+		}
+
 		rta = RTA_NEXT(rta,len);
 	}
 }
@@ -79,10 +79,8 @@ enum match_type {
 };
 
 static int find_address(struct booth_config *conf,
-			unsigned char ipaddr[BOOTH_IPADDR_LEN],
-			int family, int prefixlen,
-			int fuzzy_allowed,
-			struct booth_site **me,
+			unsigned char ipaddr[BOOTH_IPADDR_LEN], int family,
+			int prefixlen, int fuzzy_allowed, struct booth_site **me,
 			int *address_bits_matched)
 {
 	int i;
@@ -101,13 +99,17 @@ static int find_address(struct booth_config *conf,
 	mask = ~( (1 << (8 - bits_left)) -1);
 
 	FOREACH_NODE(conf, i, node) {
-		if (family != node->family)
+		if (family != node->family) {
 			continue;
+		}
+
 		n_a = node_to_addr_pointer(node);
 
-		for(matched = 0; matched < node->addrlen; matched++)
-			if (ipaddr[matched] != n_a[matched])
+		for (matched = 0; matched < node->addrlen; matched++) {
+			if (ipaddr[matched] != n_a[matched]) {
 				break;
+			}
+		}
 
 		if (matched == node->addrlen) {
 			*address_bits_matched = matched * 8;
@@ -116,15 +118,18 @@ static int find_address(struct booth_config *conf,
 			break;
 		}
 
-		if (!fuzzy_allowed)
+		if (!fuzzy_allowed) {
 			continue;
-
+		}
 
 		/* Check prefix, whole bytes */
-		if (matched < bytes)
+		if (matched < bytes) {
 			continue;
-		if (matched * 8 < *address_bits_matched)
+		}
+
+		if (matched * 8 < *address_bits_matched) {
 			continue;
+		}
 
 		node_bits = n_a[bytes];
 		ip_bits = ipaddr[bytes];
@@ -141,10 +146,10 @@ static int find_address(struct booth_config *conf,
 	return did_match;
 }
 
-
 static int _find_myself(struct booth_config *conf, int family,
 			struct booth_site **mep, int fuzzy_allowed)
 {
+	int rc;
 	int fd;
 	struct sockaddr_nl nladdr;
 	struct booth_site *me;
@@ -156,22 +161,27 @@ static int _find_myself(struct booth_config *conf, int family,
 	} req;
 	int address_bits_matched;
 
-
-	if (local)
+	if (local) {
 		goto found;
-
+	}
 
 	me = NULL;
 	address_bits_matched = 0;
-	if (mep)
+	if (mep) {
 		*mep = NULL;
+	}
 	fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
 	if (fd < 0) {
 		log_error("failed to create netlink socket");
 		return 0;
 	}
 
-	(void)setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+	rc = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+	if (rc == -1) {
+		log_error("setsockopt error %d %d", fd, errno);
+		close(fd);
+		return 0;
+	}
 
 	memset(&nladdr, 0, sizeof(nladdr));
 	nladdr.nl_family = AF_NETLINK;
@@ -184,23 +194,19 @@ static int _find_myself(struct booth_config *conf, int family,
 	req.nlh.nlmsg_seq = 1;
 	req.g.rtgen_family = family;
 
-	if (sendto(fd, (void *)&req, sizeof(req), 0,
-				(struct sockaddr*)&nladdr, sizeof(nladdr)) < 0)  {
+	if (sendto(fd, (void *) &req, sizeof(req), 0,
+		   (struct sockaddr*) &nladdr, sizeof(nladdr)) < 0)  {
 		close(fd);
 		log_error("failed to send data to netlink socket");
 		return 0;
 	}
 
-	while (1) {
+	while (true) {
 		int status;
 		struct nlmsghdr *h;
 		struct iovec iov = { rcvbuf, sizeof(rcvbuf) };
-		struct msghdr msg = {
-			(void *)&nladdr, sizeof(nladdr),
-			&iov,   1,
-			NULL,   0,
-			0
-		};
+		struct msghdr msg = { (void *) &nladdr, sizeof(nladdr), &iov,
+				      1, NULL, 0, 0 };
 
 		status = recvmsg(fd, &msg, 0);
 		if (!status) {
@@ -209,9 +215,14 @@ static int _find_myself(struct booth_config *conf, int family,
 			return 0;
 		}
 
-		for (h = (struct nlmsghdr *)rcvbuf; NLMSG_OK(h, status); h = NLMSG_NEXT(h, status)) {
-			if (h->nlmsg_type == NLMSG_DONE)
+		for (h = (struct nlmsghdr *) rcvbuf; NLMSG_OK(h, status); h = NLMSG_NEXT(h, status)) {
+			struct ifaddrmsg *ifa = NULL;
+			struct rtattr *tb[IFA_MAX+1];
+			int len;
+
+			if (h->nlmsg_type == NLMSG_DONE) {
 				goto out;
+			}
 
 			if (h->nlmsg_type == NLMSG_ERROR) {
 				close(fd);
@@ -219,60 +230,64 @@ static int _find_myself(struct booth_config *conf, int family,
 				return 0;
 			}
 
-			if (h->nlmsg_type == RTM_NEWADDR) {
-				struct ifaddrmsg *ifa = NLMSG_DATA(h);
-				struct rtattr *tb[IFA_MAX+1];
-				int len = h->nlmsg_len 
-					- NLMSG_LENGTH(sizeof(*ifa));
+			if (h->nlmsg_type != RTM_NEWADDR) {
+				continue;
+			}
 
-				memset(tb, 0, sizeof(tb));
-				parse_rtattr(tb, IFA_MAX, IFA_RTA(ifa), len);
-				memset(ipaddr, 0, BOOTH_IPADDR_LEN);
-				/* prefer IFA_LOCAL if it exists, for p-t-p
-				 * interfaces, otherwise use IFA_ADDRESS */
-				if (tb[IFA_LOCAL]) {
-					memcpy(ipaddr, RTA_DATA(tb[IFA_LOCAL]),
-							BOOTH_IPADDR_LEN);
-				} else if (tb[IFA_ADDRESS]) {
-					memcpy(ipaddr, RTA_DATA(tb[IFA_ADDRESS]),
-							BOOTH_IPADDR_LEN);
-				} else {
-					log_error("failed to copy netlink addr");
-					close(fd);
-					return 0;
+			ifa = NLMSG_DATA(h);
+			len = h->nlmsg_len - NLMSG_LENGTH(sizeof(*ifa));
+
+			memset(tb, 0, sizeof(tb));
+			parse_rtattr(tb, IFA_MAX, IFA_RTA(ifa), len);
+			memset(ipaddr, 0, BOOTH_IPADDR_LEN);
+
+			/* prefer IFA_LOCAL if it exists, for p-t-p interfaces,
+			 * otherwise use IFA_ADDRESS
+			 */
+			if (tb[IFA_LOCAL]) {
+				memcpy(ipaddr, RTA_DATA(tb[IFA_LOCAL]),
+				       BOOTH_IPADDR_LEN);
+			} else if (tb[IFA_ADDRESS]) {
+				memcpy(ipaddr, RTA_DATA(tb[IFA_ADDRESS]),
+				       BOOTH_IPADDR_LEN);
+			} else {
+				log_error("failed to copy netlink addr");
+				close(fd);
+				return 0;
+			}
+
+			/* Try to find the exact address or the address with subnet matching.
+			 * The function find_address will be called for each address received
+			 * from NLMSG_DATA above.
+			 * The exact match will be preferred. If no exact match is found,
+			 * the function find_address will try to return another, most similar
+			 * address (with the longest possible number of same bytes).
+			 */
+			if (ifa->ifa_prefixlen > address_bits_matched) {
+				find_address(conf, ipaddr, ifa->ifa_family,
+					     ifa->ifa_prefixlen, fuzzy_allowed,
+					     &me, &address_bits_matched);
+
+				if (me) {
+					log_debug("found myself at %s (%d bits matched)",
+						  site_string(me), address_bits_matched);
 				}
+			}
+			/* If the previous NLMSG_DATA calls have already allowed us
+			 * to find an address with address_bits_matched matching bits,
+			 * then no other better non-exact address can be found.
+			 * But we can still try to find an exact match, so let us
+			 * call the function find_address with disabled searching of
+			 * similar addresses (fuzzy_allowed == 0)
+			 */
+			else if (ifa->ifa_prefixlen == address_bits_matched) {
+				find_address(conf, ipaddr, ifa->ifa_family,
+					     ifa->ifa_prefixlen, 0 /* fuzzy_allowed */,
+					     &me, &address_bits_matched);
 
-				/* Try to find the exact address or the address with subnet matching.
-				 * The function find_address will be called for each address received
-				 * from NLMSG_DATA above.
-				 * The exact match will be preferred. If no exact match is found,
-				 * the function find_address will try to return another, most similar
-				 * address (with the longest possible number of same bytes). */
-				if (ifa->ifa_prefixlen > address_bits_matched) {
-					find_address(conf, ipaddr,
-						     ifa->ifa_family, ifa->ifa_prefixlen,
-						     fuzzy_allowed, &me, &address_bits_matched);
-
-					if (me) {
-						log_debug("found myself at %s (%d bits matched)",
-								site_string(me), address_bits_matched);
-					}
-				}
-				/* If the previous NLMSG_DATA calls have already allowed us
-				 * to find an address with address_bits_matched matching bits,
-				 * then no other better non-exact address can be found.
-				 * But we can still try to find an exact match, so let us
-				 * call the function find_address with disabled searching of
-				 * similar addresses (fuzzy_allowed == 0) */
-				else if (ifa->ifa_prefixlen == address_bits_matched) {
-					find_address(conf, ipaddr,
-						     ifa->ifa_family, ifa->ifa_prefixlen,
-						     0 /* fuzzy_allowed */, &me, &address_bits_matched);
-
-					if (me) {
-						log_debug("found myself at %s (exact match)",
-								site_string(me));
-					}
+				if (me) {
+					log_debug("found myself at %s (exact match)",
+						  site_string(me));
 				}
 			}
 		}
@@ -281,14 +296,18 @@ static int _find_myself(struct booth_config *conf, int family,
 out:
 	close(fd);
 
-	if (!me)
+	if (!me) {
 		return 0;
+	}
 
 	me->local = 1;
 	local = me;
+
 found:
-	if (mep)
+	if (mep) {
 		*mep = local;
+	}
+
 	return 1;
 }
 
@@ -299,11 +318,10 @@ int find_myself(struct booth_config *conf, struct booth_site **mep,
 	       _find_myself(conf, AF_INET, mep, fuzzy_allowed);
 }
 
-
-/** Checks the header fields for validity.
- * cf. init_header().
+/* Check the header fields for validity.
  * For @len_incl_data < 0 the length is not checked.
- * Return <0 if error, else bytes read. */
+ * Return < 0 if error, else bytes read.
+ */
 int check_boothc_header(struct boothc_header *h, int len_incl_data)
 {
 	int l;
@@ -317,20 +335,18 @@ int check_boothc_header(struct boothc_header *h, int len_incl_data)
 		return -EINVAL;
 	}
 
-
 	l = ntohl(h->length);
 	if (l < sizeof(*h)) {
 		log_error("length %d out of range", l);
 		return -EINVAL;
 	}
 
-
-	if (len_incl_data < 0)
+	if (len_incl_data < 0) {
 		return 0;
+	}
 
 	if (l != len_incl_data) {
-		log_error("length error - got %d, wanted %d",
-				len_incl_data, l);
+		log_error("length error - got %d, wanted %d", len_incl_data, l);
 		return -EINVAL;
 	}
 
@@ -343,14 +359,19 @@ static int do_read(int fd, void *buf, size_t count)
 
 	while (off < count) {
 		rv = read(fd, (char *)buf + off, count - off);
-		if (rv == 0)
+		if (rv == 0) {
 			return -1;
-		if (rv == -1 && errno == EINTR)
+		}
+		if (rv == -1 && errno == EINTR) {
 			continue;
-		if (rv == -1 && errno == EWOULDBLOCK)
+		}
+		if (rv == -1 && errno == EWOULDBLOCK) {
 			break;
-		if (rv == -1)
+		}
+		if (rv == -1) {
 			return -1;
+		}
+
 		off += rv;
 	}
 	return off;
@@ -362,8 +383,10 @@ static int do_write(int fd, void *buf, size_t count)
 
 retry:
 	rv = send(fd, (char *)buf + off, count, MSG_NOSIGNAL);
-	if (rv == -1 && errno == EINTR)
+	if (rv == -1 && errno == EINTR) {
 		goto retry;
+	}
+
 	/* If we cannot write _any_ data, we'd be in an (potential) loop. */
 	if (rv <= 0) {
 		log_error("send failed: %s (%d)", strerror(errno), errno);
@@ -395,11 +418,12 @@ int read_client(struct client *req_cl)
 		}
 
 		memset(msg, 0, MAX_MSG_LEN);
-		req_cl->msg = (void *)msg;
+		req_cl->msg = (void *) msg;
 	} else {
-		msg = (char *)req_cl->msg;
+		msg = (char *) req_cl->msg;
 	}
-	header = (struct boothc_header *)msg;
+
+	header = (struct boothc_header *) msg;
 
 	/* update len if we read enough */
 	if (req_cl->offset >= sizeof(*header)) {
@@ -409,10 +433,12 @@ int read_client(struct client *req_cl)
 	fd = req_cl->fd;
 	rv = do_read(fd, msg+req_cl->offset, len-req_cl->offset);
 	if (rv < 0) {
-		if (errno == ECONNRESET)
+		if (errno == ECONNRESET) {
 			log_debug("client connection reset for fd %d", fd);
+		}
 		return -1;
 	}
+
 	req_cl->offset += rv;
 
 	/* update len if we read enough */
@@ -431,7 +457,6 @@ int read_client(struct client *req_cl)
 
 	return 0;
 }
-
 
 /* Only used for client requests (tcp) */
 static void process_connection(struct booth_config *conf, int ci)
@@ -454,15 +479,15 @@ static void process_connection(struct booth_config *conf, int ci)
 		msg = req_cl->msg;
 	}
 
-	header = (struct boothc_header *)msg;
-	if (check_auth(NULL, msg, ntohl(header->length))) {
+	header = (struct boothc_header *) msg;
+	if (check_auth(conf, NULL, msg, ntohl(header->length))) {
 		errc = RLT_AUTH;
 		goto send_err;
 	}
 
 	/* For CMD_GRANT and CMD_REVOKE:
-	 * Don't close connection immediately, but send
-	 * result a second later? */
+	 * Don't close connection immediately, but send result a second later?
+	 */
 	switch (ntohl(header->cmd)) {
 	case CMD_LIST:
 		ticket_answer_list(conf, req_cl->fd);
@@ -490,8 +515,7 @@ static void process_connection(struct booth_config *conf, int ci)
 		}
 
 	default:
-		log_error("connection %d cmd %x unknown",
-				ci, ntohl(header->cmd));
+		log_error("connection %d cmd %x unknown", ci, ntohl(header->cmd));
 		errc = RLT_INVALID_ARG;
 		goto send_err;
 	}
@@ -505,37 +529,40 @@ send_err:
 
 kill:
 	deadfn = req_cl->deadfn;
-	if(deadfn) {
+	if (deadfn) {
 		deadfn(ci);
 	}
-	return;
 }
-
 
 static void process_tcp_listener(struct booth_config *conf, int ci)
 {
+	int rc;
 	int fd, i, flags, one = 1;
 	socklen_t addrlen = sizeof(struct sockaddr);
 	struct sockaddr addr;
 
 	fd = accept(clients[ci].fd, &addr, &addrlen);
 	if (fd < 0) {
-		log_error("process_tcp_listener: accept error %d %d",
-			  fd, errno);
+		log_error("process_tcp_listener: accept error %d %d", fd, errno);
 		return;
 	}
-	(void)setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&one, sizeof(one));
+
+	rc = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one));
+	if (rc == -1) {
+		log_error("process_tcp_listener: setsockopt error %d %d", fd, errno);
+		close(fd);
+		return;
+	}
 
 	flags = fcntl(fd, F_GETFL, 0);
 	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
 		log_error("process_tcp_listener: fcntl O_NONBLOCK error %d %d",
 			  fd, errno);
-		(void)close(fd);
+		close(fd);
 		return;
 	}
 
-	i = client_add(fd, clients[ci].transport,
-			process_connection, NULL);
+	i = client_add(fd, clients[ci].transport, process_connection, NULL);
 
 	log_debug("client connection %d fd %d", i, fd);
 }
@@ -551,7 +578,7 @@ int setup_tcp_listener(int test_only)
 		return s;
 	}
 
-	rv = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&one, sizeof(one));
+	rv = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
 	if (rv == -1) {
 		close(s);
 		log_error("failed to set the SO_REUSEADDR option");
@@ -585,26 +612,26 @@ static int booth_tcp_init(void * unused __attribute__((unused)))
 {
 	int rv;
 
-	if (get_local_id() < 0)
+	if (get_local_id() < 0) {
 		return -1;
+	}
 
 	rv = setup_tcp_listener(0);
-	if (rv < 0)
+	if (rv < 0) {
 		return rv;
+	}
 
-	client_add(rv, booth_transport + TCP,
-			process_tcp_listener, NULL);
-
+	client_add(rv, booth_transport + TCP, process_tcp_listener, NULL);
 	return 0;
 }
 
 static int connect_nonb(int sockfd, const struct sockaddr *saptr,
 			socklen_t salen, int sec)
 {
-	int		flags, n, error;
-	socklen_t	len;
-	fd_set		rset, wset;
-	struct timeval	tval;
+	int flags, n, error;
+	socklen_t len;
+	fd_set rset, wset;
+	struct timeval tval;
 
 	flags = fcntl(sockfd, F_GETFL, 0);
 	if (fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1) {
@@ -613,12 +640,14 @@ static int connect_nonb(int sockfd, const struct sockaddr *saptr,
 	}
 
 	error = 0;
-	if ( (n = connect(sockfd, saptr, salen)) < 0)
-		if (errno != EINPROGRESS)
-			return -1;
+	n = connect(sockfd, saptr, salen);
+	if (n < 0 && errno != EINPROGRESS) {
+		return -1;
+	}
 
-	if (n == 0)
+	if (n == 0) {
 		goto done;	/* connect completed immediately */
+	}
 
 	FD_ZERO(&rset);
 	FD_SET(sockfd, &rset);
@@ -627,17 +656,15 @@ static int connect_nonb(int sockfd, const struct sockaddr *saptr,
 	tval.tv_usec = 0;
 
 	if (select(sockfd + 1, &rset, &wset, NULL, sec ? &tval : NULL) == 0) {
-		/* leave outside function to close */
-		/* timeout */
-		/* close(sockfd); */	
 		errno = ETIMEDOUT;
 		return -1;
 	}
 
 	if (FD_ISSET(sockfd, &rset) || FD_ISSET(sockfd, &wset)) {
 		len = sizeof(error);
-		if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
+		if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
 			return -1;	/* Solaris pending error */
+		}
 	} else {
 		log_error("select error: sockfd not set");
 		return -1;
@@ -651,8 +678,6 @@ done:
 	}
 
 	if (error) {
-		/* leave outside function to close */
-		/* close(sockfd); */	
 		errno = error;
 		return -1;
 	}
@@ -664,8 +689,9 @@ static int booth_tcp_open(struct booth_site *to)
 {
 	int s, rv;
 
-	if (to->tcp_fd >= STDERR_FILENO)
+	if (to->tcp_fd >= STDERR_FILENO) {
 		goto found;
+	}
 
 	s = socket(to->family, SOCK_STREAM, 0);
 	if (s == -1) {
@@ -673,14 +699,14 @@ static int booth_tcp_open(struct booth_site *to)
 		return -1;
 	}
 
-
-	rv = connect_nonb(s, (struct sockaddr *)&to->sa6, to->saddrlen, 10);
+	rv = connect_nonb(s, (struct sockaddr *) &to->sa6, to->saddrlen, 10);
 	if (rv == -1) {
-		if( errno == ETIMEDOUT)
+		if (errno == ETIMEDOUT) {
 			log_error("connect to %s got a timeout", site_string(to));
-		else 
+		} else {
 			log_error("connect to %s got an error: %s", site_string(to),
-					strerror(errno));
+				  strerror(errno));
+		}
 		goto error;
 	}
 
@@ -690,8 +716,10 @@ found:
 	return 1;
 
 error:
-	if (s >= 0)
+	if (s >= 0) {
 		close(s);
+	}
+
 	return -1;
 }
 
@@ -710,9 +738,10 @@ static int add_hmac(struct booth_config *conf, void *data, int len)
 	}
 
 	payload_len = len - sizeof(struct hmac);
-	hp = (struct hmac *)((unsigned char *)data + payload_len);
+	hp = (struct hmac *) ((unsigned char *) data + payload_len);
 	hp->hid = htonl(BOOTH_HASH);
 	memset(hp->hash, 0, BOOTH_MAC_SIZE);
+
 	rv = calc_hmac(data, payload_len, BOOTH_HASH, hp->hash,
 		       conf->authkey, conf->authkey_len);
 	if (rv < 0) {
@@ -737,17 +766,18 @@ static int booth_tcp_send(struct booth_config *conf, struct booth_site *to,
 
 static int booth_tcp_recv(struct booth_site *from, void *buf, int len)
 {
-	int got;
 	/* Needs timeouts! */
-	got = do_read(from->tcp_fd, buf, len);
+	int got = do_read(from->tcp_fd, buf, len);
+
 	if (got < 0) {
 		log_error("read failed (%d): %s", errno, strerror(errno));
-		return got;
 	}
+
 	return got;
 }
 
-static int booth_tcp_recv_auth(struct booth_site *from, void *buf, int len)
+static int booth_tcp_recv_auth(struct booth_config *conf, struct booth_site *from,
+			       void *buf, int len)
 {
 	int got, total;
 	int payload_len;
@@ -758,24 +788,33 @@ static int booth_tcp_recv_auth(struct booth_site *from, void *buf, int len)
 	if (got < 0) {
 		return got;
 	}
+
 	total = got;
+
 	if (is_auth_req()) {
-		got = booth_tcp_recv(from, (unsigned char *)buf+payload_len, sizeof(struct hmac));
-		if (got != sizeof(struct hmac) || check_auth(from, buf, len)) {
+		got = booth_tcp_recv(from, (unsigned char *) buf+payload_len,
+				     sizeof(struct hmac));
+
+		if (got != sizeof(struct hmac) || check_auth(conf, from, buf, len)) {
 			return -1;
 		}
+
 		total += got;
 	}
+
 	return total;
 }
 
 static int booth_tcp_close(struct booth_site *to)
 {
 	if (to) {
-		if (to->tcp_fd > STDERR_FILENO)
+		if (to->tcp_fd > STDERR_FILENO) {
 			close(to->tcp_fd);
+		}
+
 		to->tcp_fd = -1;
 	}
+
 	return 0;
 }
 
@@ -798,29 +837,29 @@ static int setup_udp_server(void)
 
 	rv = fcntl(fd, F_SETFL, O_NONBLOCK);
 	if (rv == -1) {
-		log_error("failed to set non-blocking operation "
-			  "on UDP socket: %s", strerror(errno));
+		log_error("failed to set non-blocking operation on UDP socket: %s",
+			  strerror(errno));
 		goto ex;
 	}
 
-	rv = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&one, sizeof(one));
+	rv = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
 	if (rv == -1) {
 		log_error("failed to set the SO_REUSEADDR option");
 		goto ex;
 	}
 
-	rv = bind(fd, (struct sockaddr *)&local->sa6, local->saddrlen);
+	rv = bind(fd, (struct sockaddr *) &local->sa6, local->saddrlen);
 
 	if (rv == -1) {
 		log_error("failed to bind UDP socket to [%s]:%d: %s",
-				site_string(local), site_port(local),
-				strerror(errno));
+			  site_string(local), site_port(local), strerror(errno));
 		goto ex;
 	}
 
 	recvbuf_size = SOCKET_BUFFER_SIZE;
-	rv = setsockopt(fd, SOL_SOCKET, SO_RCVBUF,
-			&recvbuf_size, sizeof(recvbuf_size));
+	rv = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &recvbuf_size,
+			sizeof(recvbuf_size));
+
 	if (rv == -1) {
 		log_error("failed to set recvbuf size");
 		goto ex;
@@ -830,11 +869,12 @@ static int setup_udp_server(void)
 	return 0;
 
 ex:
-	if (fd >= 0)
+	if (fd >= 0) {
 		close(fd);
+	}
+
 	return -1;
 }
-
 
 /* Receive/process callback for UDP */
 static void process_recv(struct booth_config *conf, int ci)
@@ -842,30 +882,29 @@ static void process_recv(struct booth_config *conf, int ci)
 	struct sockaddr_storage sa;
 	int rv;
 	socklen_t sa_len;
-	/* beware, the buffer needs to be large enough to accept
-	 * a packet */
+	/* buffer needs to be large enough to accept a packet */
 	char buffer[MAX_MSG_LEN];
 	/* Used for unit tests */
 	struct boothc_ticket_msg *msg;
 
-
 	sa_len = sizeof(sa);
-	msg = (void*)buffer;
-	rv = recvfrom(clients[ci].fd,
-			buffer, sizeof(buffer),
-			MSG_NOSIGNAL | MSG_DONTWAIT,
-			(struct sockaddr *)&sa, &sa_len);
-	if (rv == -1)
+	msg = (void*) buffer;
+	rv = recvfrom(clients[ci].fd, buffer, sizeof(buffer),
+		      MSG_NOSIGNAL | MSG_DONTWAIT, (struct sockaddr *) &sa,
+		      &sa_len);
+
+	if (rv == -1) {
 		return;
+	}
 
 	rv = deliver_fn(conf, (void*) msg, rv);
 	if (rv > 0) {
-		if (getnameinfo((struct sockaddr *)&sa, sa_len,
-				buffer, sizeof(buffer), NULL, 0,
-				NI_NUMERICHOST) == 0)
+		if (getnameinfo((struct sockaddr *) &sa, sa_len, buffer,
+			        sizeof(buffer), NULL, 0, NI_NUMERICHOST) == 0) {
 			log_error("unknown sender: %08x (real: %s)", rv, buffer);
-		else
+		} else {
 			log_error("unknown sender: %08x", rv);
+		}
 	}
 }
 
@@ -874,14 +913,12 @@ static int booth_udp_init(void *f)
 	int rv;
 
 	rv = setup_udp_server();
-	if (rv < 0)
+	if (rv < 0) {
 		return rv;
+	}
 
 	deliver_fn = f;
-	client_add(local->udp_fd,
-			booth_transport + UDP,
-			process_recv, NULL);
-
+	client_add(local->udp_fd, booth_transport + UDP, process_recv, NULL);
 	return 0;
 }
 
@@ -892,20 +929,18 @@ static int booth_udp_send(struct booth_config *conf, struct booth_site *to,
 
 	to->sent_cnt++;
 	rv = sendto(local->udp_fd, buf, len, MSG_NOSIGNAL,
-			(struct sockaddr *)&to->sa6, to->saddrlen);
+		    (struct sockaddr *) &to->sa6, to->saddrlen);
+
 	if (rv == len) {
 		rv = 0;
 	} else if (rv < 0) {
 		to->sent_err_cnt++;
-		log_error("Cannot send to %s: %d %s",
-				site_string(to),
-				errno,
-				strerror(errno));
+		log_error("Cannot send to %s: %d %s", site_string(to), errno,
+			  strerror(errno));
 	} else {
 		rv = -1;
 		to->sent_err_cnt++;
-		log_error("Packet sent to %s got truncated",
-				site_string(to));
+		log_error("Packet sent to %s got truncated", site_string(to));
 	}
 
 	return rv;
@@ -940,11 +975,13 @@ static int booth_udp_broadcast_auth(struct booth_config *conf, void *buf, int le
 
 	rvs = 0;
 	FOREACH_NODE(conf, i, site) {
-		if (site != local) {
-			rv = booth_udp_send(conf, site, buf, len);
-			if (!rvs) {
-				rvs = rv;
-			}
+		if (site == local) {
+			continue;
+		}
+
+		rv = booth_udp_send(conf, site, buf, len);
+		if (!rvs) {
+			rvs = rv;
 		}
 	}
 
@@ -985,6 +1022,7 @@ static int return_0(void)
 {
 	return 0;
 }
+
 const struct booth_transport booth_transport[TRANSPORT_ENTRIES] = {
 	[TCP] = {
 		.name = "TCP",
@@ -1024,11 +1062,12 @@ const struct booth_transport booth_transport[TRANSPORT_ENTRIES] = {
 /* verify the validity of timestamp from the header
  * the timestamp needs to be either greater than the one already
  * recorded for the site or, and this is checked for clients,
- * not to be older than booth_conf->maxtimeskew
+ * not to be older than conf->maxtimeskew
  * update the timestamp for the site, if this packet is from a
  * site
  */
-static int verify_ts(struct booth_site *from, void *buf, int len)
+static int verify_ts(struct booth_config *conf, struct booth_site *from,
+		     void *buf, int len)
 {
 	struct boothc_header *h;
 	struct timeval tv, curr_tv, now;
@@ -1038,24 +1077,29 @@ static int verify_ts(struct booth_site *from, void *buf, int len)
 		return -1;
 	}
 
-	h = (struct boothc_header *)buf;
+	h = (struct boothc_header *) buf;
 	tv.tv_sec = ntohl(h->secs);
 	tv.tv_usec = ntohl(h->usecs);
+
 	if (from) {
 		curr_tv.tv_sec = from->last_secs;
 		curr_tv.tv_usec = from->last_usecs;
-		if (timercmp(&tv, &curr_tv, >))
+		if (timercmp(&tv, &curr_tv, >)) {
 			goto accept;
+		}
+
 		log_warn("%s: packet timestamp older than previous one",
-			site_string(from));
+			 site_string(from));
 	}
 
 	gettimeofday(&now, NULL);
-	now.tv_sec -= booth_conf->maxtimeskew;
-	if (timercmp(&tv, &now, >))
+	now.tv_sec -= conf->maxtimeskew;
+	if (timercmp(&tv, &now, >)) {
 		goto accept;
+	}
+
 	log_error("%s: packet timestamp older than %d seconds",
-		peer_string(from), booth_conf->maxtimeskew);
+		  peer_string(from), conf->maxtimeskew);
 	return -1;
 
 accept:
@@ -1067,28 +1111,33 @@ accept:
 }
 #endif
 
-int check_auth(struct booth_site *from, void *buf, int len)
+int check_auth(struct booth_config *conf, struct booth_site *from, void *buf,
+	       int len)
 {
 	int rv = 0;
 #if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
 	int payload_len;
 	struct hmac *hp;
 
-	if (!is_auth_req())
+	if (!is_auth_req()) {
 		return 0;
+	}
 
 	payload_len = len - sizeof(struct hmac);
 	if (payload_len < 0) {
 		log_error("%s: failed to authenticate, packet too short (size:%d)",
-			peer_string(from), len);
+			  peer_string(from), len);
 		return -1;
 	}
-	hp = (struct hmac *)((unsigned char *)buf + payload_len);
+
+	hp = (struct hmac *) ((unsigned char *) buf + payload_len);
 	rv = verify_hmac(buf, payload_len, ntohl(hp->hid), hp->hash,
-		booth_conf->authkey, booth_conf->authkey_len);
+			 conf->authkey, conf->authkey_len);
+
 	if (!rv) {
-		rv = verify_ts(from, buf, len);
+		rv = verify_ts(conf, from, buf, len);
 	}
+
 	if (rv != 0) {
 		log_error("%s: failed to authenticate", peer_string(from));
 	}
@@ -1126,10 +1175,8 @@ int send_header_plus(struct booth_config *conf, int fd,
 int message_recv(struct booth_config *conf, void *msg, int msglen)
 {
 	uint32_t from;
-	struct boothc_header *header;
+	struct boothc_header *header = msg;
 	struct booth_site *source;
-
-	header = (struct boothc_header *)msg;
 
 	from = ntohl(header->from);
 	if (!find_site_by_id(conf, from, &source)) {
@@ -1148,16 +1195,14 @@ int message_recv(struct booth_config *conf, void *msg, int msglen)
 		return -1;
 	}
 
-	if (check_auth(source, msg, msglen)) {
+	if (check_auth(conf, source, msg, msglen)) {
 		log_error("%s failed to authenticate", site_string(source));
 		source->sec_cnt++;
 		return -1;
 	}
 
 	if (ntohl(header->opts) & BOOTH_OPT_ATTR) {
-		/* not used, clients send/retrieve attributes directly
-		 * from sites
-		 */
+		/* not used, clients send/retrieve attributes directly from sites */
 		return attr_recv(conf, msg, source);
 	} else {
 		return ticket_recv(conf, msg, source);
