@@ -31,7 +31,7 @@
 #include "config.h"
 #include "inline-fn.h"
 #include "log.h"
-#include "pacemaker.h"
+#include "pcmk.h"
 #include "booth.h"
 #include "handler.h"
 
@@ -131,7 +131,7 @@ void wait_child(int sig)
 	struct ticket_config *tk;
 
 	/* use waitpid(2) and not wait(2) in order not to interfere
-	 * with popen(2)/pclose(2) and system(2) used in pacemaker.c
+	 * with popen(2)/pclose(2) and system(2) used in pcmk.c
 	 */
 	_FOREACH_TICKET(i, tk) {
 		if (tk_test.path && tk_test.pid > 0 &&
