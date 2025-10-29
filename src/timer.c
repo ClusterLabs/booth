@@ -24,7 +24,8 @@
 int TIME_RES = 1000;
 int TIME_MULT = 1;
 
-int time_sub_int(timetype *a, timetype *b)
+int
+time_sub_int(timetype *a, timetype *b)
 {
 	timetype res;
 
@@ -33,7 +34,8 @@ int time_sub_int(timetype *a, timetype *b)
 }
 
 /* interval (b) is in ms (1/TIME_RES) */
-void interval_add(timetype *a, int b, timetype *res)
+void
+interval_add(timetype *a, int b, timetype *res)
 {
 	/* need this to allow interval_add(a, b, a); */
 	long tmp_subsec = a->SUBSEC + (long)b*TIME_FAC;
@@ -42,12 +44,14 @@ void interval_add(timetype *a, int b, timetype *res)
 	res->tv_sec = a->tv_sec + tmp_subsec/NSECS;
 }
 
-int is_time_set(timetype *p)
+int
+is_time_set(timetype *p)
 {
 	return (p->tv_sec != 0) || (p->SUBSEC != 0);
 }
 
-int is_past(timetype *p)
+int
+is_past(timetype *p)
 {
 	timetype now;
 
@@ -58,13 +62,15 @@ int is_past(timetype *p)
 	return time_cmp(&now, p, >);
 }
 
-void secs2tv(time_t secs, timetype *p)
+void
+secs2tv(time_t secs, timetype *p)
 {
 	memset(p, 0, sizeof(timetype));
 	p->tv_sec = secs;
 }
 
-int time_left(timetype *p)
+int
+time_left(timetype *p)
 {
 	timetype now;
 
@@ -73,7 +79,8 @@ int time_left(timetype *p)
 	return time_sub_int(p, &now);
 }
 
-void set_future_time(timetype *a, int b)
+void
+set_future_time(timetype *a, int b)
 {
 	timetype now;
 
@@ -81,12 +88,14 @@ void set_future_time(timetype *a, int b)
 	interval_add(&now, b, a);
 }
 
-void time_reset(timetype *p)
+void
+time_reset(timetype *p)
 {
 	memset(p, 0, sizeof(timetype));
 }
 
-void copy_time(timetype *src, timetype *dst)
+void
+copy_time(timetype *src, timetype *dst)
 {
 	dst->SUBSEC = src->SUBSEC;
 	dst->tv_sec = src->tv_sec;
@@ -94,7 +103,8 @@ void copy_time(timetype *src, timetype *dst)
 
 #if _POSIX_TIMERS > 0
 
-void time_sub(struct timespec *a, struct timespec *b, struct timespec *res)
+void
+time_sub(struct timespec *a, struct timespec *b, struct timespec *res)
 {
 	if (a->tv_nsec < b->tv_nsec) {
 		res->tv_sec = a->tv_sec - b->tv_sec - 1L;
@@ -105,7 +115,8 @@ void time_sub(struct timespec *a, struct timespec *b, struct timespec *res)
 	}
 }
 
-void time_add(struct timespec *a, struct timespec *b, struct timespec *res)
+void
+time_add(struct timespec *a, struct timespec *b, struct timespec *res)
 {
 	res->tv_nsec = a->tv_nsec + b->tv_nsec;
 	res->tv_sec = a->tv_sec + b->tv_sec;
@@ -115,9 +126,9 @@ void time_add(struct timespec *a, struct timespec *b, struct timespec *res)
 	}
 }
 
-time_t get_secs(struct timespec *p)
+time_t
+get_secs(struct timespec *p)
 {
-
 	if (p) {
 		get_time(p);
 		return p->tv_sec;
@@ -131,7 +142,8 @@ time_t get_secs(struct timespec *p)
 /* time booth_clk_t is a time since boot or similar, convert that
  * to time since epoch (Jan 1, 1970)
  */
-static void clock2epochtime(struct timespec *booth_clk_t, struct timespec *res)
+static void
+clock2epochtime(struct timespec *booth_clk_t, struct timespec *res)
 {
 	struct timespec booth_clk_now, now_tv;
 	struct timeval now;
@@ -145,7 +157,8 @@ static void clock2epochtime(struct timespec *booth_clk_t, struct timespec *res)
 
 /* time booth_clk_t is a time since boot or similar, return
  * something humans can understand (rounded seconds only) */
-time_t wall_ts(struct timespec *booth_clk_t)
+time_t
+wall_ts(struct timespec *booth_clk_t)
 {
 	struct timespec res;
 
@@ -156,7 +169,8 @@ time_t wall_ts(struct timespec *booth_clk_t)
 /* time booth_clk_t is a time since boot or similar, get here
  * seconds since epoch
  */
-time_t secs_since_epoch(struct timespec *booth_clk_t)
+time_t
+secs_since_epoch(struct timespec *booth_clk_t)
 {
 	struct timespec res;
 
@@ -166,7 +180,8 @@ time_t secs_since_epoch(struct timespec *booth_clk_t)
 
 /* time t is wall clock time, convert to time compatible
  * with our clock_gettime clock */
-time_t unwall_ts(time_t t)
+time_t
+unwall_ts(time_t t)
 {
 	struct timespec booth_clk_now, now_tv, res;
 	struct timeval now;

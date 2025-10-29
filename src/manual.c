@@ -30,9 +30,10 @@
  * and the current node doesn't have to wait for any responses
  * from other sites.
  */
-int manual_selection(struct booth_config *conf, struct ticket_config *tk,
-		     struct booth_site *preference, int update_term,
-		     cmd_reason_t reason)
+int
+manual_selection(struct booth_config *conf, struct ticket_config *tk,
+                 struct booth_site *preference, int update_term,
+                 cmd_reason_t reason)
 {
 	if (local->type != SITE) {
 		return 0;
@@ -68,10 +69,11 @@ int manual_selection(struct booth_config *conf, struct ticket_config *tk,
  * revoked from another site, which this site doesn't
  * consider as a leader.
  */
-int process_REVOKE_for_manual_ticket(struct booth_config *conf,
-				     struct ticket_config *tk,
-				     struct booth_site *sender,
-				     struct boothc_ticket_msg *msg)
+int
+process_REVOKE_for_manual_ticket(struct booth_config *conf,
+                                 struct ticket_config *tk,
+                                 struct booth_site *sender,
+                                 struct boothc_ticket_msg *msg)
 {
 	int rv;
 

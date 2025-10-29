@@ -32,10 +32,9 @@ static int req_id_cnt;
  * memory for the three parameters
  */
 
-void *add_req(
-	struct ticket_config *tk,
-	struct client *req_client,
-	struct boothc_ticket_msg *msg)
+void *
+add_req(struct ticket_config *tk, struct client *req_client,
+        struct boothc_ticket_msg *msg)
 {
 	struct request *rp;
 
@@ -50,22 +49,24 @@ void *add_req(
 	return rp;
 }
 
-int get_req_id(const void *rp)
+int
+get_req_id(const void *rp)
 {
 	if (!rp)
 		return -1;
 	return ((struct request *)rp)->id;
 }
 
-static void del_req(GList *lp)
+static void
+del_req(GList *lp)
 {
 	if (!lp)
 		return;
 	req_l = g_list_delete_link(req_l, lp);
 }
 
-void foreach_tkt_req(struct booth_config *conf, struct ticket_config *tk,
-		     req_fp f)
+void
+foreach_tkt_req(struct booth_config *conf, struct ticket_config *tk, req_fp f)
 {
 	GList *lp, *next;
 	struct request *rp;

@@ -46,7 +46,8 @@
 extern int TIME_RES;
 
 /* Untrusted input, must fit (incl. \0) in a buffer of max chars. */
-int check_max_len_valid(const char *s, int max)
+int
+check_max_len_valid(const char *s, int max)
 {
 	for (int i = 0; i < max; i++) {
 		if (s[i] == 0) {
@@ -57,8 +58,9 @@ int check_max_len_valid(const char *s, int max)
 	return 0;
 }
 
-int find_ticket_by_name(struct booth_config *conf, const char *ticket,
-			struct ticket_config **found)
+int
+find_ticket_by_name(struct booth_config *conf, const char *ticket,
+                    struct ticket_config **found)
 {
 	struct ticket_config *tk;
 	int i;
@@ -82,8 +84,9 @@ int find_ticket_by_name(struct booth_config *conf, const char *ticket,
 	return 0;
 }
 
-int check_ticket(struct booth_config *conf, char *ticket,
-		 struct ticket_config **found)
+int
+check_ticket(struct booth_config *conf, char *ticket,
+             struct ticket_config **found)
 {
 	if (found) {
 		*found = NULL;
@@ -107,7 +110,8 @@ int check_ticket(struct booth_config *conf, char *ticket,
  * TODO: investigate possibility to devise from history whether a
  * missing site could be holding a ticket or not
  */
-static int ticket_dangerous(struct ticket_config *tk)
+static int
+ticket_dangerous(struct ticket_config *tk)
 {
 	int tdiff;
 	/* we may be invoked often, don't spam the log unnecessarily
@@ -142,7 +146,8 @@ static int ticket_dangerous(struct ticket_config *tk)
 	return 1;
 }
 
-int ticket_write(struct ticket_config *tk)
+int
+ticket_write(struct ticket_config *tk)
 {
 	if (local->type != SITE) {
 		return -EINVAL;
@@ -167,7 +172,8 @@ int ticket_write(struct ticket_config *tk)
 	return 0;
 }
 
-void save_committed_tkt(struct ticket_config *tk)
+void
+save_committed_tkt(struct ticket_config *tk)
 {
 	if (!tk->last_valid_tk) {
 		tk->last_valid_tk = malloc(sizeof(struct ticket_config));
@@ -181,8 +187,9 @@ void save_committed_tkt(struct ticket_config *tk)
 	memcpy(tk->last_valid_tk, tk, sizeof(struct ticket_config));
 }
 
-static void ext_prog_failed(struct booth_config *conf, struct ticket_config *tk,
-			    int start_election)
+static void
+ext_prog_failed(struct booth_config *conf, struct ticket_config *tk,
+                int start_election)
 {
 	if (!is_manual(tk)) {
 		/* Give it to somebody else.
@@ -218,7 +225,8 @@ static void ext_prog_failed(struct booth_config *conf, struct ticket_config *tk,
 #define attr_found(geo_ap, ap) \
 	((geo_ap) && !strcmp((geo_ap)->val, (ap)->attr_val))
 
-int check_attr_prereq(struct ticket_config *tk, grant_type_e grant_type)
+int
+check_attr_prereq(struct ticket_config *tk, grant_type_e grant_type)
 {
 	GList *el;
 	struct attr_prereq *ap;
@@ -267,8 +275,9 @@ fail:
  * != 0: executing program failed (or some other failure)
  */
 
-static int do_ext_prog(struct booth_config *conf, struct ticket_config *tk,
-		       int start_election)
+static int
+do_ext_prog(struct booth_config *conf, struct ticket_config *tk,
+            int start_election)
 {
 	int rv = 0;
 
@@ -312,8 +321,9 @@ static int do_ext_prog(struct booth_config *conf, struct ticket_config *tk,
  * to start the program, and then to get the result and start
  * elections.
  */
-static int acquire_ticket(struct booth_config *conf, struct ticket_config *tk,
-			  cmd_reason_t reason)
+static int
+acquire_ticket(struct booth_config *conf, struct ticket_config *tk,
+               cmd_reason_t reason)
 {
 	int rv;
 
@@ -345,8 +355,9 @@ static int acquire_ticket(struct booth_config *conf, struct ticket_config *tk,
 
 /** Try to get the ticket for the local site.
  * */
-static int do_grant_ticket(struct booth_config *conf, struct ticket_config *tk,
-			   int options)
+static int
+do_grant_ticket(struct booth_config *conf, struct ticket_config *tk,
+                int options)
 {
 	int rv;
 
@@ -388,7 +399,8 @@ static int do_grant_ticket(struct booth_config *conf, struct ticket_config *tk,
 	}
 }
 
-static void start_revoke_ticket(struct booth_config *conf, struct ticket_config *tk)
+static void
+start_revoke_ticket(struct booth_config *conf, struct ticket_config *tk)
 {
 	tk_log_info("revoking ticket");
 
@@ -400,7 +412,8 @@ static void start_revoke_ticket(struct booth_config *conf, struct ticket_config 
 
 /** Ticket revoke.
  * Only to be started from the leader. */
-static int do_revoke_ticket(struct booth_config *conf, struct ticket_config *tk)
+static int
+do_revoke_ticket(struct booth_config *conf, struct ticket_config *tk)
 {
 	if (tk->acks_expected) {
 		tk_log_info("delay ticket revoke until the current operation finishes");
@@ -412,8 +425,9 @@ static int do_revoke_ticket(struct booth_config *conf, struct ticket_config *tk)
 	}
 }
 
-static int number_sites_marked_as_granted(struct booth_config *conf,
-					  struct ticket_config *tk)
+static int
+number_sites_marked_as_granted(struct booth_config *conf,
+                               struct ticket_config *tk)
 {
 	int i, result = 0;
 	struct booth_site *ignored __attribute__((unused));
@@ -425,7 +439,8 @@ static int number_sites_marked_as_granted(struct booth_config *conf,
 	return result;
 }
 
-static int list_ticket(struct booth_config *conf, char **pdata)
+static int
+list_ticket(struct booth_config *conf, char **pdata)
 {
 	GString *s = NULL;
 	struct ticket_config *tk;
@@ -527,14 +542,16 @@ static int list_ticket(struct booth_config *conf, char **pdata)
 	return 0;
 }
 
-void disown_ticket(struct ticket_config *tk)
+void
+disown_ticket(struct ticket_config *tk)
 {
 	set_leader(tk, NULL);
 	tk->is_granted = 0;
 	get_time(&tk->term_expires);
 }
 
-void reset_ticket(struct ticket_config *tk)
+void
+reset_ticket(struct ticket_config *tk)
 {
 	ignore_ext_test(tk);
 	disown_ticket(tk);
@@ -544,7 +561,8 @@ void reset_ticket(struct ticket_config *tk)
 	tk->voted_for = NULL;
 }
 
-void reset_ticket_and_set_no_leader(struct ticket_config *tk)
+void
+reset_ticket_and_set_no_leader(struct ticket_config *tk)
 {
 	mark_ticket_as_revoked_from_leader(tk);
 	reset_ticket(tk);
@@ -553,7 +571,8 @@ void reset_ticket_and_set_no_leader(struct ticket_config *tk)
 	tk_log_debug("ticket leader set to no_leader");
 }
 
-static void log_reacquire_reason(struct ticket_config *tk)
+static void
+log_reacquire_reason(struct ticket_config *tk)
 {
 	int valid;
 	const char *where_granted = NULL;
@@ -586,7 +605,8 @@ static void log_reacquire_reason(struct ticket_config *tk)
 	}
 }
 
-void update_ticket_state(struct ticket_config *tk, struct booth_site *sender)
+void
+update_ticket_state(struct ticket_config *tk, struct booth_site *sender)
 {
 	if (tk->state == ST_CANDIDATE) {
 		tk_log_info("learned from %s about newer ticket, stopping elections",
@@ -644,7 +664,8 @@ void update_ticket_state(struct ticket_config *tk, struct booth_site *sender)
 	}
 }
 
-int setup_ticket(struct booth_config *conf)
+int
+setup_ticket(struct booth_config *conf)
 {
 	struct ticket_config *tk;
 	int i;
@@ -670,7 +691,8 @@ int setup_ticket(struct booth_config *conf)
 	return 0;
 }
 
-int ticket_answer_list(struct booth_config *conf, int fd)
+int
+ticket_answer_list(struct booth_config *conf, int fd)
 {
 	char *data = NULL;
 	int rv;
@@ -691,8 +713,9 @@ out:
 	return rv;
 }
 
-int process_client_request(struct booth_config *conf, struct client *req_client,
-			   void *buf)
+int
+process_client_request(struct booth_config *conf, struct client *req_client,
+                       void *buf)
 {
 	int rv, rc = 1;
 	struct ticket_config *tk;
@@ -752,8 +775,9 @@ reply_now:
 	return rc;
 }
 
-int notify_client(struct booth_config *conf, struct ticket_config *tk,
-                  int client_fd, struct boothc_ticket_msg *msg)
+int
+notify_client(struct booth_config *conf, struct ticket_config *tk,
+              int client_fd, struct boothc_ticket_msg *msg)
 {
 	struct boothc_ticket_msg omsg;
 	void (*deadfn) (int ci);
@@ -803,9 +827,10 @@ int notify_client(struct booth_config *conf, struct ticket_config *tk,
 	}
 }
 
-int ticket_broadcast(struct booth_config *conf, struct ticket_config *tk,
-		     cmd_request_t cmd, cmd_request_t expected_reply,
-		     cmd_result_t res, cmd_reason_t reason)
+int
+ticket_broadcast(struct booth_config *conf, struct ticket_config *tk,
+                 cmd_request_t cmd, cmd_request_t expected_reply,
+                 cmd_result_t res, cmd_reason_t reason)
 {
 	struct boothc_ticket_msg msg;
 
@@ -829,7 +854,8 @@ int ticket_broadcast(struct booth_config *conf, struct ticket_config *tk,
    send out the update message to others with the new expiry
    time
 */
-int leader_update_ticket(struct booth_config *conf, struct ticket_config *tk)
+int
+leader_update_ticket(struct booth_config *conf, struct ticket_config *tk)
 {
 	int rv = 0, rv2;
 	timetype now;
@@ -871,7 +897,8 @@ int leader_update_ticket(struct booth_config *conf, struct ticket_config *tk)
 	return rv;
 }
 
-static void log_lost_servers(struct booth_config *conf, struct ticket_config *tk)
+static void
+log_lost_servers(struct booth_config *conf, struct ticket_config *tk)
 {
 	struct booth_site *n;
 	int i;
@@ -896,7 +923,8 @@ static void log_lost_servers(struct booth_config *conf, struct ticket_config *tk
 	}
 }
 
-static void resend_msg(struct booth_config *conf, struct ticket_config *tk)
+static void
+resend_msg(struct booth_config *conf, struct ticket_config *tk)
 {
 	struct booth_site *n;
 	int i;
@@ -920,7 +948,8 @@ static void resend_msg(struct booth_config *conf, struct ticket_config *tk)
 	}
 }
 
-static void handle_resends(struct booth_config *conf, struct ticket_config *tk)
+static void
+handle_resends(struct booth_config *conf, struct ticket_config *tk)
 {
 	int ack_cnt;
 
@@ -959,7 +988,8 @@ just_resend:
 	resend_msg(conf, tk);
 }
 
-static int postpone_ticket_processing(struct ticket_config *tk)
+static int
+postpone_ticket_processing(struct ticket_config *tk)
 {
 	extern timetype start_time;
 
@@ -968,7 +998,8 @@ static int postpone_ticket_processing(struct ticket_config *tk)
 
 #define has_extprog_exited(tk) ((tk)->clu_test.progstate == EXTPROG_EXITED)
 
-static void process_next_state(struct booth_config *conf, struct ticket_config *tk)
+static void
+process_next_state(struct booth_config *conf, struct ticket_config *tk)
 {
 	int rv;
 
@@ -1010,7 +1041,8 @@ static void process_next_state(struct booth_config *conf, struct ticket_config *
 	tk->start_postpone = 0;
 }
 
-static void ticket_lost(struct ticket_config *tk)
+static void
+ticket_lost(struct ticket_config *tk)
 {
 	int reason = OR_TKT_LOST;
 
@@ -1038,7 +1070,8 @@ static void ticket_lost(struct ticket_config *tk)
 	}
 }
 
-static void next_action(struct booth_config *conf, struct ticket_config *tk)
+static void
+next_action(struct booth_config *conf, struct ticket_config *tk)
 {
 	int rv;
 
@@ -1126,7 +1159,8 @@ static void next_action(struct booth_config *conf, struct ticket_config *tk)
 	}
 }
 
-static void ticket_cron(struct booth_config *conf, struct ticket_config *tk)
+static void
+ticket_cron(struct booth_config *conf, struct ticket_config *tk)
 {
 	/* don't process the tickets too early after start */
 	if (postpone_ticket_processing(tk)) {
@@ -1171,7 +1205,8 @@ out:
 	}
 }
 
-void process_tickets(struct booth_config *conf)
+void
+process_tickets(struct booth_config *conf)
 {
 	struct ticket_config *tk;
 	int i;
@@ -1195,7 +1230,8 @@ void process_tickets(struct booth_config *conf)
 	}
 }
 
-void tickets_log_info(struct booth_config *conf)
+void
+tickets_log_info(struct booth_config *conf)
 {
 	struct ticket_config *tk;
 	int i;
@@ -1211,8 +1247,9 @@ void tickets_log_info(struct booth_config *conf)
 	}
 }
 
-static void update_acks(struct ticket_config *tk, struct booth_site *sender,
-			struct booth_site *leader, struct boothc_ticket_msg *msg)
+static void
+update_acks(struct ticket_config *tk, struct booth_site *sender,
+            struct booth_site *leader, struct boothc_ticket_msg *msg)
 {
 	uint32_t cmd;
 	uint32_t req;
@@ -1237,7 +1274,8 @@ static void update_acks(struct ticket_config *tk, struct booth_site *sender,
 }
 
 /* read ticket message */
-int ticket_recv(struct booth_config *conf, void *buf, struct booth_site *source)
+int
+ticket_recv(struct booth_config *conf, void *buf, struct booth_site *source)
 {
 	struct boothc_ticket_msg *msg;
 	struct ticket_config *tk;
@@ -1265,7 +1303,8 @@ int ticket_recv(struct booth_config *conf, void *buf, struct booth_site *source)
 	return raft_answer(conf, tk, source, leader, msg);
 }
 
-static void log_next_wakeup(struct ticket_config *tk)
+static void
+log_next_wakeup(struct ticket_config *tk)
 {
 	int left;
 
@@ -1277,7 +1316,8 @@ static void log_next_wakeup(struct ticket_config *tk)
 /* delay the next election start for some random time
  * (up to 1 second)
  */
-void add_random_delay(struct ticket_config *tk)
+void
+add_random_delay(struct ticket_config *tk)
 {
 	timetype tv;
 
@@ -1289,7 +1329,8 @@ void add_random_delay(struct ticket_config *tk)
 	}
 }
 
-void set_ticket_wakeup(struct ticket_config *tk)
+void
+set_ticket_wakeup(struct ticket_config *tk)
 {
 	timetype near_future, tv, next_vote;
 
@@ -1367,7 +1408,8 @@ void set_ticket_wakeup(struct ticket_config *tk)
 	}
 }
 
-void schedule_election(struct ticket_config *tk, cmd_reason_t reason)
+void
+schedule_election(struct ticket_config *tk, cmd_reason_t reason)
 {
 	if (local->type != SITE) {
 		return;
@@ -1379,14 +1421,16 @@ void schedule_election(struct ticket_config *tk, cmd_reason_t reason)
 	add_random_delay(tk);
 }
 
-int is_manual(struct ticket_config *tk)
+int
+is_manual(struct ticket_config *tk)
 {
 	return (tk->mode == TICKET_MODE_MANUAL) ? 1 : 0;
 }
 
 /* Given a state (in host byte order), return a human-readable (char*).
  * An array is used so that multiple states can be printed in a single printf(). */
-char *state_to_string(uint32_t state_ho)
+char *
+state_to_string(uint32_t state_ho)
 {
 	union mu { cmd_request_t s; char c[5]; };
 	static union mu cache[6] = { { 0 } }, *cur;
@@ -1406,9 +1450,10 @@ char *state_to_string(uint32_t state_ho)
 	return cur->c;
 }
 
-int send_reject(struct booth_config *conf, struct booth_site *dest,
-		struct ticket_config *tk, cmd_result_t code,
-		struct boothc_ticket_msg *in_msg)
+int
+send_reject(struct booth_config *conf, struct booth_site *dest,
+            struct ticket_config *tk, cmd_result_t code,
+            struct boothc_ticket_msg *in_msg)
 {
 	int req = ntohl(in_msg->header.cmd);
 	struct boothc_ticket_msg msg;
@@ -1418,8 +1463,9 @@ int send_reject(struct booth_config *conf, struct booth_site *dest,
 	return booth_udp_send_auth(conf, dest, &msg, sendmsglen(&msg));
 }
 
-int send_msg(struct booth_config *conf, int cmd, struct ticket_config *tk,
-	     struct booth_site *dest, struct boothc_ticket_msg *in_msg)
+int
+send_msg(struct booth_config *conf, int cmd, struct ticket_config *tk,
+         struct booth_site *dest, struct boothc_ticket_msg *in_msg)
 {
 	int req = 0;
 	struct ticket_config *valid_tk = tk;

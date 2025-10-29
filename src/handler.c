@@ -35,7 +35,8 @@
 #include "booth.h"
 #include "handler.h"
 
-static int set_booth_env(struct ticket_config *tk)
+static int
+set_booth_env(struct ticket_config *tk)
 {
 	int rv;
 	char expires[16];
@@ -116,7 +117,8 @@ reset_test_state(struct ticket_config *tk)
 	set_progstate(tk, EXTPROG_IDLE);
 }
 
-int tk_test_exit_status(struct ticket_config *tk)
+int
+tk_test_exit_status(struct ticket_config *tk)
 {
 	int rv;
 
@@ -125,7 +127,8 @@ int tk_test_exit_status(struct ticket_config *tk)
 	return rv;
 }
 
-void wait_child(int sig)
+void
+wait_child(int sig)
 {
 	int i, status;
 	struct ticket_config *tk;
@@ -152,7 +155,8 @@ void wait_child(int sig)
 /* the parent may want to have us stop processing scripts, say
  * when the ticket gets revoked
  */
-static void ignore_rest(int sig)
+static void
+ignore_rest(int sig)
 {
 	signal(SIGTERM, SIG_IGN);
 	ignore_status = 1;
@@ -161,19 +165,22 @@ static void ignore_rest(int sig)
 	}
 }
 
-void ext_prog_timeout(struct ticket_config *tk)
+void
+ext_prog_timeout(struct ticket_config *tk)
 {
 	tk_log_warn("handler timed out");
 }
 
-int is_ext_prog_running(struct ticket_config *tk)
+int
+is_ext_prog_running(struct ticket_config *tk)
 {
 	if (!tk_test.path)
 		return 0;
 	return (tk_test.pid > 0 && tk_test.progstate == EXTPROG_RUNNING);
 }
 
-void ignore_ext_test(struct ticket_config *tk)
+void
+ignore_ext_test(struct ticket_config *tk)
 {
 	if (is_ext_prog_running(tk)) {
 		(void)kill(tk_test.pid, SIGTERM);
@@ -248,7 +255,8 @@ process_ext_dir(struct ticket_config *tk)
  * RUNCMD_ERR: executing program failed (or some other failure)
  * RUNCMD_MORE: program forked, results later
  */
-int run_handler(struct ticket_config *tk)
+int
+run_handler(struct ticket_config *tk)
 {
 	int rv = 0;
 	pid_t pid;

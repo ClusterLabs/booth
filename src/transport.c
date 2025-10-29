@@ -60,8 +60,8 @@ struct booth_site *local = NULL;
  * address if this is available */
 static int (*deliver_fn) (struct booth_config *conf, void *msg, int msglen);
 
-static void parse_rtattr(struct rtattr *tb[],
-			 int max, struct rtattr *rta, int len)
+static void
+parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta, int len)
 {
 	while (RTA_OK(rta, len)) {
 		if (rta->rta_type <= max) {
@@ -78,10 +78,10 @@ enum match_type {
 	EXACT_MATCH,
 };
 
-static int find_address(struct booth_config *conf,
-			unsigned char ipaddr[BOOTH_IPADDR_LEN], int family,
-			int prefixlen, int fuzzy_allowed, struct booth_site **me,
-			int *address_bits_matched)
+static int
+find_address(struct booth_config *conf, unsigned char ipaddr[BOOTH_IPADDR_LEN],
+             int family, int prefixlen, int fuzzy_allowed,
+             struct booth_site **me, int *address_bits_matched)
 {
 	int i;
 	struct booth_site *node;
@@ -146,8 +146,9 @@ static int find_address(struct booth_config *conf,
 	return did_match;
 }
 
-static int _find_myself(struct booth_config *conf, int family,
-			struct booth_site **mep, int fuzzy_allowed)
+static int
+_find_myself(struct booth_config *conf, int family, struct booth_site **mep,
+             int fuzzy_allowed)
 {
 	int rc;
 	int fd;
@@ -311,8 +312,9 @@ found:
 	return 1;
 }
 
-int find_myself(struct booth_config *conf, struct booth_site **mep,
-		int fuzzy_allowed)
+int
+find_myself(struct booth_config *conf, struct booth_site **mep,
+            int fuzzy_allowed)
 {
 	return _find_myself(conf, AF_INET6, mep, fuzzy_allowed) ||
 	       _find_myself(conf, AF_INET, mep, fuzzy_allowed);
@@ -322,7 +324,8 @@ int find_myself(struct booth_config *conf, struct booth_site **mep,
  * For @len_incl_data < 0 the length is not checked.
  * Return < 0 if error, else bytes read.
  */
-int check_boothc_header(struct boothc_header *h, int len_incl_data)
+int
+check_boothc_header(struct boothc_header *h, int len_incl_data)
 {
 	int l;
 
@@ -353,7 +356,8 @@ int check_boothc_header(struct boothc_header *h, int len_incl_data)
 	return len_incl_data;
 }
 
-static int do_read(int fd, void *buf, size_t count)
+static int
+do_read(int fd, void *buf, size_t count)
 {
 	int rv, off = 0;
 
@@ -377,7 +381,8 @@ static int do_read(int fd, void *buf, size_t count)
 	return off;
 }
 
-static int do_write(int fd, void *buf, size_t count)
+static int
+do_write(int fd, void *buf, size_t count)
 {
 	int rv, off = 0;
 
@@ -403,7 +408,8 @@ retry:
 
 
 /* Only used for client requests (tcp) */
-int read_client(struct client *req_cl)
+int
+read_client(struct client *req_cl)
 {
 	char *msg;
 	struct boothc_header *header;
@@ -459,7 +465,8 @@ int read_client(struct client *req_cl)
 }
 
 /* Only used for client requests (tcp) */
-static void process_connection(struct booth_config *conf, int ci)
+static void
+process_connection(struct booth_config *conf, int ci)
 {
 	struct client *req_cl;
 	void *msg = NULL;
@@ -534,7 +541,8 @@ kill:
 	}
 }
 
-static void process_tcp_listener(struct booth_config *conf, int ci)
+static void
+process_tcp_listener(struct booth_config *conf, int ci)
 {
 	int rc;
 	int fd, i, flags, one = 1;
@@ -567,7 +575,8 @@ static void process_tcp_listener(struct booth_config *conf, int ci)
 	log_debug("client connection %d fd %d", i, fd);
 }
 
-int setup_tcp_listener(int test_only)
+int
+setup_tcp_listener(int test_only)
 {
 	int s, rv;
 	int one = 1;
@@ -608,7 +617,8 @@ int setup_tcp_listener(int test_only)
 	return s;
 }
 
-static int booth_tcp_init(void * unused __attribute__((unused)))
+static int
+booth_tcp_init(void *unused __attribute__((unused)))
 {
 	int rv;
 
@@ -625,8 +635,8 @@ static int booth_tcp_init(void * unused __attribute__((unused)))
 	return 0;
 }
 
-static int connect_nonb(int sockfd, const struct sockaddr *saptr,
-			socklen_t salen, int sec)
+static int
+connect_nonb(int sockfd, const struct sockaddr *saptr, socklen_t salen, int sec)
 {
 	int flags, n, error;
 	socklen_t len;
@@ -685,7 +695,8 @@ done:
 	return 0;
 }
 
-static int booth_tcp_open(struct booth_site *to)
+static int
+booth_tcp_open(struct booth_site *to)
 {
 	int s, rv;
 
@@ -726,7 +737,8 @@ error:
 /* data + (datalen-sizeof(struct hmac)) points to struct hmac
  * i.e. struct hmac is always tacked on the payload
  */
-static int add_hmac(struct booth_config *conf, void *data, int len)
+static int
+add_hmac(struct booth_config *conf, void *data, int len)
 {
 	int rv = 0;
 #if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
@@ -751,8 +763,9 @@ static int add_hmac(struct booth_config *conf, void *data, int len)
 	return rv;
 }
 
-static int booth_tcp_send(struct booth_config *conf, struct booth_site *to,
-			  void *buf, int len)
+static int
+booth_tcp_send(struct booth_config *conf, struct booth_site *to, void *buf,
+               int len)
 {
 	int rv;
 
@@ -764,7 +777,8 @@ static int booth_tcp_send(struct booth_config *conf, struct booth_site *to,
 	return rv;
 }
 
-static int booth_tcp_recv(struct booth_site *from, void *buf, int len)
+static int
+booth_tcp_recv(struct booth_site *from, void *buf, int len)
 {
 	/* Needs timeouts! */
 	int got = do_read(from->tcp_fd, buf, len);
@@ -776,8 +790,9 @@ static int booth_tcp_recv(struct booth_site *from, void *buf, int len)
 	return got;
 }
 
-static int booth_tcp_recv_auth(struct booth_config *conf, struct booth_site *from,
-			       void *buf, int len)
+static int
+booth_tcp_recv_auth(struct booth_config *conf, struct booth_site *from,
+                    void *buf, int len)
 {
 	int got, total;
 	int payload_len;
@@ -805,7 +820,8 @@ static int booth_tcp_recv_auth(struct booth_config *conf, struct booth_site *fro
 	return total;
 }
 
-static int booth_tcp_close(struct booth_site *to)
+static int
+booth_tcp_close(struct booth_site *to)
 {
 	if (to) {
 		if (to->tcp_fd > STDERR_FILENO) {
@@ -818,12 +834,14 @@ static int booth_tcp_close(struct booth_site *to)
 	return 0;
 }
 
-static int booth_tcp_exit(void)
+static int
+booth_tcp_exit(void)
 {
 	return 0;
 }
 
-static int setup_udp_server(void)
+static int
+setup_udp_server(void)
 {
 	int rv, fd;
 	int one = 1;
@@ -877,7 +895,8 @@ ex:
 }
 
 /* Receive/process callback for UDP */
-static void process_recv(struct booth_config *conf, int ci)
+static void
+process_recv(struct booth_config *conf, int ci)
 {
 	struct sockaddr_storage sa;
 	int rv;
@@ -908,7 +927,8 @@ static void process_recv(struct booth_config *conf, int ci)
 	}
 }
 
-static int booth_udp_init(void *f)
+static int
+booth_udp_init(void *f)
 {
 	int rv;
 
@@ -922,8 +942,9 @@ static int booth_udp_init(void *f)
 	return 0;
 }
 
-static int booth_udp_send(struct booth_config *conf, struct booth_site *to,
-			  void *buf, int len)
+static int
+booth_udp_send(struct booth_config *conf, struct booth_site *to, void *buf,
+               int len)
 {
 	int rv;
 
@@ -946,8 +967,9 @@ static int booth_udp_send(struct booth_config *conf, struct booth_site *to,
 	return rv;
 }
 
-int booth_udp_send_auth(struct booth_config *conf, struct booth_site *to,
-			void *buf, int len)
+int
+booth_udp_send_auth(struct booth_config *conf, struct booth_site *to, void *buf,
+                    int len)
 {
 	int rv;
 
@@ -959,7 +981,8 @@ int booth_udp_send_auth(struct booth_config *conf, struct booth_site *to,
 	return booth_udp_send(conf, to, buf, len);
 }
 
-static int booth_udp_broadcast_auth(struct booth_config *conf, void *buf, int len)
+static int
+booth_udp_broadcast_auth(struct booth_config *conf, void *buf, int len)
 {
 	int i, rv, rvs;
 	struct booth_site *site;
@@ -988,37 +1011,43 @@ static int booth_udp_broadcast_auth(struct booth_config *conf, void *buf, int le
 	return rvs;
 }
 
-static int booth_udp_exit(void)
+static int
+booth_udp_exit(void)
 {
 	return 0;
 }
 
 /* SCTP transport layer has not been developed yet */
-static int booth_sctp_init(void *f __attribute__((unused)))
+static int
+booth_sctp_init(void *f __attribute__((unused)))
 {
 	return 0;
 }
 
-static int booth_sctp_send(struct booth_config *conf __attribute__((unused)),
-			   struct booth_site *to __attribute__((unused)),
-			   void *buf __attribute__((unused)),
-			   int len __attribute__((unused)))
+static int
+booth_sctp_send(struct booth_config *conf __attribute__((unused)),
+                struct booth_site *to __attribute__((unused)),
+                void *buf __attribute__((unused)),
+                int len __attribute__((unused)))
 {
 	return 0;
 }
 
-static int booth_sctp_broadcast(void *buf __attribute__((unused)),
-				int len __attribute__((unused)))
+static int
+booth_sctp_broadcast(void *buf __attribute__((unused)),
+                     int len __attribute__((unused)))
 {
 	return 0;
 }
 
-static int return_0_booth_site(struct booth_site *v __attribute((unused)))
+static int
+return_0_booth_site(struct booth_site *v __attribute((unused)))
 {
 	return 0;
 }
 
-static int return_0(void)
+static int
+return_0(void)
 {
 	return 0;
 }
@@ -1066,8 +1095,9 @@ const struct booth_transport booth_transport[TRANSPORT_ENTRIES] = {
  * update the timestamp for the site, if this packet is from a
  * site
  */
-static int verify_ts(struct booth_config *conf, struct booth_site *from,
-		     void *buf, int len)
+static int
+verify_ts(struct booth_config *conf, struct booth_site *from, void *buf,
+          int len)
 {
 	struct boothc_header *h;
 	struct timeval tv, curr_tv, now;
@@ -1111,8 +1141,9 @@ accept:
 }
 #endif
 
-int check_auth(struct booth_config *conf, struct booth_site *from, void *buf,
-	       int len)
+int
+check_auth(struct booth_config *conf, struct booth_site *from, void *buf,
+           int len)
 {
 	int rv = 0;
 #if HAVE_LIBGNUTLS || HAVE_LIBGCRYPT || HAVE_LIBMHASH
@@ -1145,7 +1176,8 @@ int check_auth(struct booth_config *conf, struct booth_site *from, void *buf,
 	return rv;
 }
 
-int send_data(struct booth_config *conf, int fd, void *data, int datalen)
+int
+send_data(struct booth_config *conf, int fd, void *data, int datalen)
 {
 	int rv = 0;
 
@@ -1157,8 +1189,9 @@ int send_data(struct booth_config *conf, int fd, void *data, int datalen)
 	return rv;
 }
 
-int send_header_plus(struct booth_config *conf, int fd,
-		     struct boothc_hdr_msg *msg, void *data, int len)
+int
+send_header_plus(struct booth_config *conf, int fd, struct boothc_hdr_msg *msg,
+                 void *data, int len)
 {
 	int rv;
 
@@ -1172,7 +1205,8 @@ int send_header_plus(struct booth_config *conf, int fd,
 }
 
 /* UDP message receiver (see also deliver_fn declaration's comment) */
-int message_recv(struct booth_config *conf, void *msg, int msglen)
+int
+message_recv(struct booth_config *conf, void *msg, int msglen)
 {
 	uint32_t from;
 	struct boothc_header *header = msg;
