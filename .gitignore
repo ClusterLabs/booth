@@ -24,6 +24,7 @@ booth-*.tar*
 conf/booth*.service
 docs/*.8
 docs/*.8.html
+docs/*.8.xml
 script/service-runnable
 src/b_config.h.in
 src/b_config.h
