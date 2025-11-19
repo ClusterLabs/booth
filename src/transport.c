@@ -1041,7 +1041,7 @@ booth_sctp_broadcast(void *buf __attribute__((unused)),
 }
 
 static int
-return_0_booth_site(struct booth_site *v __attribute((unused)))
+return_0_booth_site(struct booth_site *v __attribute__((unused)))
 {
 	return 0;
 }
