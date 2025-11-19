@@ -38,7 +38,8 @@
 
 static int ticket_size = 0;
 
-static int ticket_realloc(struct booth_config *conf)
+static int
+ticket_realloc(struct booth_config *conf)
 {
 	const int added = 5;
 	int had, want;
@@ -63,7 +64,8 @@ static int ticket_realloc(struct booth_config *conf)
 	return 0;
 }
 
-static void hostname_to_ip(char * hostname)
+static void
+hostname_to_ip(char *hostname)
 {
 	struct addrinfo hints;
 	struct addrinfo *result, *rp;
@@ -116,7 +118,8 @@ static void hostname_to_ip(char * hostname)
 	freeaddrinfo(result);
 }
 
-static int add_site(struct booth_config *conf, char *addr_string, int type)
+static int
+add_site(struct booth_config *conf, char *addr_string, int type)
 {
 	int rv;
 	struct booth_site *site;
@@ -230,8 +233,8 @@ out:
 	return rv;
 }
 
-
-inline static char *skip_while_in(const char *cp, int (*fn)(int), const char *allowed)
+static inline char *
+skip_while_in(const char *cp, int (*fn)(int), const char *allowed)
 {
 	/* strchr() returns a pointer to the terminator if *cp == 0. */
 	while (*cp &&
@@ -242,31 +245,32 @@ inline static char *skip_while_in(const char *cp, int (*fn)(int), const char *al
 	return (char*)cp;
 }
 
-
-inline static char *skip_while(char *cp, int (*fn)(int))
+static inline char *
+skip_while(char *cp, int (*fn)(int))
 {
 	while (fn(*cp))
 		cp++;
 	return cp;
 }
 
-inline static char *skip_until(char *cp, char expected)
+static inline char *
+skip_until(char *cp, char expected)
 {
 	while (*cp && *cp != expected)
 		cp++;
 	return cp;
 }
 
-
-static inline int is_end_of_line(char *cp)
+static inline int
+is_end_of_line(char *cp)
 {
 	char c = *cp;
 	return c == '\n' || c == 0 || c == '#';
 }
 
-
-static int add_ticket(struct booth_config *conf, const char *name,
-                      struct ticket_config **tkp, const struct ticket_config *def)
+static int
+add_ticket(struct booth_config *conf, const char *name,
+           struct ticket_config **tkp, const struct ticket_config *def)
 {
 	int rv;
 	struct ticket_config *tk;
@@ -311,7 +315,8 @@ static int add_ticket(struct booth_config *conf, const char *name,
 	return 0;
 }
 
-static int postproc_ticket(struct ticket_config *tk)
+static int
+postproc_ticket(struct ticket_config *tk)
 {
 	if (!tk)
 		return 1;
@@ -332,7 +337,8 @@ static int postproc_ticket(struct ticket_config *tk)
 }
 
 /* returns number of weights, or -1 on bad input. */
-static int parse_weights(const char *input, int weights[MAX_NODES])
+static int
+parse_weights(const char *input, int weights[MAX_NODES])
 {
 	int i, v;
 	char *cp;
@@ -378,7 +384,8 @@ static int parse_weights(const char *input, int weights[MAX_NODES])
 }
 
 /* returns TICKET_MODE_AUTO if failed to parse the ticket mode. */
-static ticket_mode_e retrieve_ticket_mode(const char *input)
+static ticket_mode_e
+retrieve_ticket_mode(const char *input)
 {
 	if (strcasecmp(input, "manual") == 0) {
 		return TICKET_MODE_MANUAL;
@@ -391,7 +398,8 @@ static ticket_mode_e retrieve_ticket_mode(const char *input)
  * or milliseconds
  * returns -1 on failure, otherwise time in ms
  */
-static long read_time(char *val)
+static long
+read_time(char *val)
 {
 	long t;
 	char *ep;
@@ -418,7 +426,8 @@ static long read_time(char *val)
  * (strtok pokes holes in the configuration parameter value, i.e.
  * we don't need to allocate memory for arguments)
  */
-static int parse_extprog(char *val, struct ticket_config *tk)
+static int
+parse_extprog(char *val, struct ticket_config *tk)
 {
 	char *p;
 	int i = 0;
@@ -458,7 +467,8 @@ struct toktab attr_op[] = {
 	{NULL, 0},
 };
 
-static int lookup_tokval(char *key, struct toktab *tab)
+static int
+lookup_tokval(char *key, struct toktab *tab)
 {
 	struct toktab *tp;
 
@@ -471,7 +481,8 @@ static int lookup_tokval(char *key, struct toktab *tab)
 
 /* attribute prerequisite
  */
-static int parse_attr_prereq(char *val, struct ticket_config *tk)
+static int
+parse_attr_prereq(char *val, struct ticket_config *tk)
 {
 	struct attr_prereq *ap = NULL;
 	char *p;
@@ -545,7 +556,8 @@ err_out:
 
 extern int poll_timeout;
 
-int read_config(struct booth_config **conf, const char *path, int type)
+int
+read_config(struct booth_config **conf, const char *path, int type)
 {
 	char line[1024];
 	char error_str_buf[1024];
@@ -934,7 +946,8 @@ out:
 	return -1;
 }
 
-int check_config(struct booth_config *conf, int type)
+int
+check_config(struct booth_config *conf, int type)
 {
 	struct passwd *pw;
 	struct group *gr;
@@ -991,8 +1004,8 @@ g_inval:
 }
 
 
-static int get_other_site(struct booth_config *conf,
-			  struct booth_site **node)
+static int
+get_other_site(struct booth_config *conf, struct booth_site **node)
 {
 	struct booth_site *n;
 	int i;
@@ -1016,8 +1029,9 @@ static int get_other_site(struct booth_config *conf,
 }
 
 
-int find_site_by_name(struct booth_config *conf, const char *site,
-		      struct booth_site **node, int any_type)
+int
+find_site_by_name(struct booth_config *conf, const char *site,
+                  struct booth_site **node, int any_type)
 {
 	struct booth_site *n;
 	int i;
@@ -1041,8 +1055,9 @@ int find_site_by_name(struct booth_config *conf, const char *site,
 	return 0;
 }
 
-int find_site_by_id(struct booth_config *conf,
-		    uint32_t site_id, struct booth_site **node)
+int
+find_site_by_id(struct booth_config *conf, uint32_t site_id,
+                struct booth_site **node)
 {
 	struct booth_site *n;
 	int i;
@@ -1066,7 +1081,8 @@ int find_site_by_id(struct booth_config *conf,
 	return 0;
 }
 
-const char *type_to_string(int type)
+const char *
+type_to_string(int type)
 {
 	switch (type)
 	{

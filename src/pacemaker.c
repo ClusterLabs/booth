@@ -35,7 +35,8 @@
 
 #define COMMAND_MAX	2048
 
-const char * interpret_rv(int rv)
+const char *
+interpret_rv(int rv)
 {
 	static char text[64];
 
@@ -50,8 +51,8 @@ const char * interpret_rv(int rv)
 	return text;
 }
 
-
-static int pcmk_write_ticket_atomic(struct ticket_config *tk, int grant)
+static int
+pcmk_write_ticket_atomic(struct ticket_config *tk, int grant)
 {
 	char cmd[COMMAND_MAX];
 	int rv;
@@ -87,22 +88,20 @@ static int pcmk_write_ticket_atomic(struct ticket_config *tk, int grant)
 	return rv;
 }
 
-
-static int pcmk_grant_ticket(struct ticket_config *tk)
+static int
+pcmk_grant_ticket(struct ticket_config *tk)
 {
-
 	return pcmk_write_ticket_atomic(tk, +1);
 }
 
-
-static int pcmk_revoke_ticket(struct ticket_config *tk)
+static int
+pcmk_revoke_ticket(struct ticket_config *tk)
 {
-
 	return pcmk_write_ticket_atomic(tk, -1);
 }
 
-
-static int _run_crm_ticket(char *cmd)
+static int
+_run_crm_ticket(char *cmd)
 {
 	int i, rv;
 
@@ -116,7 +115,8 @@ static int _run_crm_ticket(char *cmd)
 	return rv;
 }
 
-static int pcmk_set_attr(struct ticket_config *tk, const char *attr, const char *val)
+static int
+pcmk_set_attr(struct ticket_config *tk, const char *attr, const char *val)
 {
 	char cmd[COMMAND_MAX];
 	int rv;
@@ -133,7 +133,8 @@ static int pcmk_set_attr(struct ticket_config *tk, const char *attr, const char 
 	return _run_crm_ticket(cmd);
 }
 
-static int pcmk_del_attr(struct ticket_config *tk, const char *attr)
+static int
+pcmk_del_attr(struct ticket_config *tk, const char *attr)
 {
 	char cmd[COMMAND_MAX];
 	int rv;
@@ -160,21 +161,24 @@ struct attr_tab
 	attr_f handling_f;
 };
 
-static int save_expires(struct booth_config *conf, struct ticket_config *tk,
-			const char *name, const char *val)
+static int
+save_expires(struct booth_config *conf, struct ticket_config *tk,
+             const char *name, const char *val)
 {
 	secs2tv(unwall_ts(atol(val)), &tk->term_expires);
 	return 0;
 }
 
-static int save_term(struct booth_config *conf, struct ticket_config *tk,
-		     const char *name, const char *val)
+static int
+save_term(struct booth_config *conf, struct ticket_config *tk, const char *name,
+          const char *val)
 {
 	tk->current_term = atol(val);
 	return 0;
 }
 
-static int parse_boolean(const char *val)
+static int
+parse_boolean(const char *val)
 {
 	long v;
 
@@ -188,29 +192,32 @@ static int parse_boolean(const char *val)
 	return v;
 }
 
-static int save_granted(struct booth_config *conf, struct ticket_config *tk,
-			const char *name, const char *val)
+static int
+save_granted(struct booth_config *conf, struct ticket_config *tk,
+             const char *name, const char *val)
 {
 	tk->is_granted = parse_boolean(val);
 	return 0;
 }
 
-static int save_owner(struct booth_config *conf, struct ticket_config *tk,
-		      const char *name, const char *val)
+static int
+save_owner(struct booth_config *conf, struct ticket_config *tk,
+           const char *name, const char *val)
 {
 	/* No check, node could have been deconfigured. */
 	tk->leader = NULL;
 	return !find_site_by_id(conf, atol(val), &tk->leader);
 }
 
-static int ignore_attr(struct booth_config *conf, struct ticket_config *tk,
-		       const char *name, const char *val)
+static int
+ignore_attr(struct booth_config *conf, struct ticket_config *tk,
+            const char *name, const char *val)
 {
 	return 0;
 }
 
-static int save_attr(struct ticket_config *tk, const char *name,
-		     const char *val)
+static int
+save_attr(struct ticket_config *tk, const char *name, const char *val)
 {
 	/* tell store_geo_attr not to store time, we don't have that
 	 * information available
@@ -232,7 +239,8 @@ struct attr_tab attr_handlers[] = {
 
 /* get_attr is currently not used and has not been tested
  */
-static int pcmk_get_attr(struct ticket_config *tk, const char *attr, const char **vp)
+static int
+pcmk_get_attr(struct ticket_config *tk, const char *attr, const char **vp)
 {
 	char cmd[COMMAND_MAX];
 	char line[BOOTH_ATTRVAL_LEN+1];
@@ -276,8 +284,9 @@ out:
 	return rv | pipe_rv;
 }
 
-static int save_attributes(struct booth_config *conf, struct ticket_config *tk,
-			   xmlDocPtr doc)
+static int
+save_attributes(struct booth_config *conf, struct ticket_config *tk,
+                xmlDocPtr doc)
 {
 	int rv = 0, rc;
 	xmlNodePtr n;
@@ -320,8 +329,8 @@ static int save_attributes(struct booth_config *conf, struct ticket_config *tk,
 
 #define CHUNK_SIZE 256
 
-static int parse_ticket_state(struct booth_config *conf, struct ticket_config *tk,
-			      FILE *p)
+static int
+parse_ticket_state(struct booth_config *conf, struct ticket_config *tk, FILE *p)
 {
 	int rv = 0;
 	GString *input = NULL;
@@ -372,7 +381,8 @@ out:
 	return rv;
 }
 
-static int pcmk_load_ticket(struct booth_config *conf, struct ticket_config *tk)
+static int
+pcmk_load_ticket(struct booth_config *conf, struct ticket_config *tk)
 {
 	char cmd[COMMAND_MAX];
 	int rv = 0, pipe_rv;
@@ -423,7 +433,6 @@ static int pcmk_load_ticket(struct booth_config *conf, struct ticket_config *tk)
 	}
 	return rv | pipe_rv;
 }
-
 
 struct ticket_handler pcmk_handler = {
 	.grant_ticket   = pcmk_grant_ticket,

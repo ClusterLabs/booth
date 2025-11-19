@@ -120,7 +120,8 @@ static int sig_exit_handler_sig = 0;
 static int sig_usr1_handler_called = 0;
 static int sig_chld_handler_called = 0;
 
-static const char *state_string(BOOTH_DAEMON_STATE st)
+static const char *
+state_string(BOOTH_DAEMON_STATE st)
 {
 	if (st == BOOTHD_STARTED) {
 		return "started";
@@ -131,7 +132,8 @@ static const char *state_string(BOOTH_DAEMON_STATE st)
 	}
 }
 
-static void client_alloc(void)
+static void
+client_alloc(void)
 {
 	int i;
 
@@ -154,7 +156,8 @@ static void client_alloc(void)
 	client_size += CLIENT_NALLOC;
 }
 
-static void client_dead(int ci)
+static void
+client_dead(int ci)
 {
 	struct client *c = clients + ci;
 
@@ -175,8 +178,9 @@ static void client_dead(int ci)
 	pollfds[ci].fd = -1;
 }
 
-int client_add(int fd, const struct booth_transport *tpt,
-		workfn_t workfn, void (*deadfn)(int ci))
+int
+client_add(int fd, const struct booth_transport *tpt, workfn_t workfn,
+           void (*deadfn)(int ci))
 {
 	int i;
 	struct client *c;
@@ -213,7 +217,8 @@ int client_add(int fd, const struct booth_transport *tpt,
 	assert(!"no client");
 }
 
-int find_client_by_fd(int fd)
+int
+find_client_by_fd(int fd)
 {
 	int i;
 
@@ -227,7 +232,8 @@ int find_client_by_fd(int fd)
 	return -1;
 }
 
-static int format_peers(char **pdata, unsigned int *len)
+static int
+format_peers(char **pdata, unsigned int *len)
 {
 	struct booth_site *s;
 	char *data, *cp;
@@ -280,7 +286,8 @@ static int format_peers(char **pdata, unsigned int *len)
 }
 
 
-void list_peers(struct booth_config *conf, int fd)
+void
+list_peers(struct booth_config *conf, int fd)
 {
 	char *data;
 	unsigned int olen;
@@ -301,7 +308,8 @@ out:
 
 /* trim trailing spaces if the key is ascii
  */
-static void trim_key()
+static void
+trim_key(void)
 {
 	char *p;
 	int i;
@@ -324,7 +332,8 @@ static void trim_key()
 	}
 }
 
-static int read_authkey()
+static int
+read_authkey(void)
 {
 	int fd;
 
@@ -356,7 +365,8 @@ static int read_authkey()
 	return (booth_conf->authkey_len >= BOOTH_MIN_KEY_LEN) ? 0 : -1;
 }
 
-int update_authkey()
+int
+update_authkey(void)
 {
 	struct stat statbuf;
 
@@ -371,7 +381,8 @@ int update_authkey()
 	return 0;
 }
 
-static int setup_config(struct booth_config **conf, int type)
+static int
+setup_config(struct booth_config **conf, int type)
 {
 	int rv;
 
@@ -432,7 +443,8 @@ out:
 	return rv;
 }
 
-static int setup_transport(void)
+static int
+setup_transport(void)
 {
 	int rv;
 
@@ -453,7 +465,8 @@ out:
 }
 
 
-static int write_daemon_state(int fd, int state)
+static int
+write_daemon_state(int fd, int state)
 {
 	char *buffer;
 	int rv, size;
@@ -501,7 +514,8 @@ static int write_daemon_state(int fd, int state)
 	return 0;
 }
 
-static int process_signals(void)
+static int
+process_signals(void)
 {
 	if (sig_exit_handler_called) {
 		log_info("caught signal %d", sig_exit_handler_sig);
@@ -519,7 +533,8 @@ static int process_signals(void)
 	return 0;
 }
 
-static int loop(int fd)
+static int
+loop(int fd)
 {
 	workfn_t workfn;
 	void (*deadfn) (int ci);
@@ -586,7 +601,8 @@ fail:
 }
 
 
-static int test_reply(cmd_result_t reply_code, cmd_request_t cmd)
+static int
+test_reply(cmd_result_t reply_code, cmd_request_t cmd)
 {
 	int rv = 0;
 	const char *op_str = NULL;
@@ -681,7 +697,8 @@ static int test_reply(cmd_result_t reply_code, cmd_request_t cmd)
 	return rv;
 }
 
-static int query_get_string_answer(cmd_request_t cmd)
+static int
+query_get_string_answer(cmd_request_t cmd)
 {
 	struct booth_site *site;
 	struct boothc_hdr_msg reply;
@@ -760,7 +777,8 @@ out:
 }
 
 
-static int do_command(cmd_request_t cmd)
+static int
+do_command(cmd_request_t cmd)
 {
 	struct booth_site *site;
 	struct boothc_ticket_msg reply;
@@ -876,7 +894,8 @@ out_close:
 
 
 
-static int _lockfile(int mode, int *fdp, pid_t *locked_by)
+static int
+_lockfile(int mode, int *fdp, pid_t *locked_by)
 {
 	struct flock lock;
 	int fd, rv;
@@ -918,14 +937,14 @@ static int _lockfile(int mode, int *fdp, pid_t *locked_by)
 	return rv;
 }
 
-
-static inline int is_root(void)
+static inline int
+is_root(void)
 {
 	return geteuid() == 0;
 }
 
-
-static int create_lockfile(void)
+static int
+create_lockfile(void)
 {
 	int rv, fd;
 
@@ -964,13 +983,15 @@ fail:
 	return -1;
 }
 
-static void unlink_lockfile(int fd)
+static void
+unlink_lockfile(int fd)
 {
 	unlink(cl.lockfile);
 	close(fd);
 }
 
-static void print_usage(void)
+static void
+print_usage(void)
 {
 	printf(
 	"Usage:\n"
@@ -1008,7 +1029,9 @@ static void print_usage(void)
 #define OPTION_STRING		"c:Dl:t:s:FhSwC"
 #define ATTR_OPTION_STRING		"c:Dt:s:h"
 
-void safe_copy(char *dest, char *value, size_t buflen, const char *description) {
+void
+safe_copy(char *dest, char *value, size_t buflen, const char *description)
+{
 	int content_len = buflen - 1;
 
 	if (strlen(value) >= content_len) {
@@ -1020,7 +1043,8 @@ void safe_copy(char *dest, char *value, size_t buflen, const char *description) 
 	dest[content_len] = 0;
 }
 
-static int host_convert(char *hostname, char *ip_str, size_t ip_size)
+static int
+host_convert(char *hostname, char *ip_str, size_t ip_size)
 {
 	struct addrinfo *result = NULL, hints = {0};
 	int re = -1;
@@ -1050,7 +1074,8 @@ static int host_convert(char *hostname, char *ip_str, size_t ip_size)
 	optind++; \
 } while(0)
 
-static int read_arguments(int argc, char **argv)
+static int
+read_arguments(int argc, char **argv)
 {
 	int optchar;
 	char *arg1 = argv[1];
@@ -1292,8 +1317,8 @@ missingarg:
 	exit(EXIT_FAILURE);
 }
 
-
-static void set_scheduler(void)
+static void
+set_scheduler(void)
 {
 	struct sched_param sched_param;
 	struct rlimit rlimit;
@@ -1325,7 +1350,8 @@ static void set_scheduler(void)
 	}
 }
 
-static int set_procfs_val(const char *path, const char *val)
+static int
+set_procfs_val(const char *path, const char *val)
 {
 	int rc = -1;
 	FILE *fp = fopen(path, "w");
@@ -1338,7 +1364,8 @@ static int set_procfs_val(const char *path, const char *val)
 	return rc;
 }
 
-static int do_status(struct booth_config **conf, int type)
+static int
+do_status(struct booth_config **conf, int type)
 {
 	pid_t pid;
 	int rv, status_lock_fd, ret;
@@ -1423,8 +1450,8 @@ quit:
 	return ret;
 }
 
-
-static int limit_this_process(void)
+static int
+limit_this_process(void)
 {
 	int rv;
 	if (!is_root())
@@ -1447,7 +1474,8 @@ static int limit_this_process(void)
 
 static int lock_fd = -1;
 
-static void server_exit(void)
+static void
+server_exit(void)
 {
 	int rv;
 
@@ -1461,23 +1489,27 @@ static void server_exit(void)
 	log_info("exiting");
 }
 
-static void sig_exit_handler(int sig)
+static void
+sig_exit_handler(int sig)
 {
 	sig_exit_handler_sig = sig;
 	sig_exit_handler_called = 1;
 }
 
-static void sig_usr1_handler(int sig)
+static void
+sig_usr1_handler(int sig)
 {
 	sig_usr1_handler_called = 1;
 }
 
-static void sig_chld_handler(int sig)
+static void
+sig_chld_handler(int sig)
 {
 	sig_chld_handler_called = 1;
 }
 
-static int do_server(struct booth_config **conf, int type)
+static int
+do_server(struct booth_config **conf, int type)
 {
 	int rv = -1;
 	static char log_ent[128] = DAEMON_NAME "-";
@@ -1558,7 +1590,8 @@ static int do_server(struct booth_config **conf, int type)
 	return rv;
 }
 
-static int do_client(struct booth_config **conf)
+static int
+do_client(struct booth_config **conf)
 {
 	int rv;
 
@@ -1584,7 +1617,8 @@ out:
 	return rv;
 }
 
-static int do_attr(struct booth_config **conf)
+static int
+do_attr(struct booth_config **conf)
 {
 	int rv = -1;
 
@@ -1628,7 +1662,8 @@ out:
 	return rv;
 }
 
-int main(int argc, char *argv[], char *envp[])
+int
+main(int argc, char *argv[], char *envp[])
 {
 	int rv;
 	const char *cp;

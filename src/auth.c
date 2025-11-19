@@ -23,8 +23,9 @@
  * it is up to the caller to make sure that there's enough space
  * at result for the MAC
  */
-int calc_hmac(const void *data, size_t datalen,
-	int hid, unsigned char *result, char *key, unsigned int keylen)
+int
+calc_hmac(const void *data, size_t datalen, int hid, unsigned char *result,
+          char *key, unsigned int keylen)
 {
 	int rc;
 
@@ -56,8 +57,9 @@ int calc_hmac(const void *data, size_t datalen,
 
 /* test HMAC
  */
-int verify_hmac(const void *data, size_t datalen,
-	int hid, unsigned char *hmac, char *key, int keylen)
+int
+verify_hmac(const void *data, size_t datalen, int hid, unsigned char *hmac,
+            char *key, int keylen)
 {
 	unsigned char *our_hmac;
 	int rc;
@@ -101,8 +103,9 @@ out_free:
  * it is up to the caller to make sure that there's enough space
  * at result for the MAC
  */
-int calc_hmac(const void *data, size_t datalen,
-	int hid, unsigned char *result, char *key, unsigned int keylen)
+int
+calc_hmac(const void *data, size_t datalen, int hid, unsigned char *result,
+          char *key, unsigned int keylen)
 {
 	static gcry_md_hd_t digest;
 	gcry_error_t err;
@@ -132,8 +135,9 @@ int calc_hmac(const void *data, size_t datalen,
 
 /* test HMAC
  */
-int verify_hmac(const void *data, size_t datalen,
-	int hid, unsigned char *hmac, char *key, int keylen)
+int
+verify_hmac(const void *data, size_t datalen, int hid, unsigned char *hmac,
+            char *key, int keylen)
 {
 	unsigned char *our_hmac;
 	int rc;
@@ -164,8 +168,9 @@ out_free:
  * it is up to the caller to make sure that there's enough space
  * at result for the MAC
  */
-int calc_hmac(const void *data, size_t datalen,
-	hashid hid, unsigned char *result, char *key, int keylen)
+int
+calc_hmac(const void *data, size_t datalen, hashid hid, unsigned char *result,
+          char *key, int keylen)
 {
 	MHASH td;
 	size_t block_size;
@@ -187,8 +192,9 @@ int calc_hmac(const void *data, size_t datalen,
 
 /* test HMAC
  */
-int verify_hmac(const void *data, size_t datalen,
-	hashid hid, unsigned char *hmac, char *key, int keylen)
+int
+verify_hmac(const void *data, size_t datalen, hashid hid, unsigned char *hmac,
+            char *key, int keylen)
 {
 	MHASH td;
 	unsigned char *our_hmac = NULL;

@@ -23,7 +23,8 @@
 #include "ticket.h"
 #include "pacemaker.h"
 
-void print_geostore_usage(void)
+void
+print_geostore_usage(void)
 {
 	printf(
 	"Usage:\n"
@@ -62,7 +63,8 @@ void print_geostore_usage(void)
  * ticket, attr name, attr value
  */
 
-int test_attr_reply(cmd_result_t reply_code, cmd_request_t cmd)
+int
+test_attr_reply(cmd_result_t reply_code, cmd_request_t cmd)
 {
 	int rv = 0;
 	const char *op_str = NULL;
@@ -128,9 +130,9 @@ int test_attr_reply(cmd_result_t reply_code, cmd_request_t cmd)
  *   -1: header received, but message too short
  *   >=0: success
  */
-static int read_server_reply(
-		struct booth_transport const *tpt, struct booth_site *site,
-		char *msg)
+static int
+read_server_reply(struct booth_transport const *tpt, struct booth_site *site,
+                  char *msg)
 {
 	struct boothc_header *header;
 	int rv;
@@ -149,7 +151,8 @@ static int read_server_reply(
 	return rv;
 }
 
-int do_attr_command(struct booth_config *conf, cmd_request_t cmd)
+int
+do_attr_command(struct booth_config *conf, cmd_request_t cmd)
 {
 	struct booth_site *site = NULL;
 	struct boothc_header *header;
@@ -234,7 +237,8 @@ out_close:
  */
 #define gbool2rlt(i) (i ? RLT_SUCCESS : RLT_SYNC_FAIL)
 
-static void free_geo_attr(gpointer data)
+static void
+free_geo_attr(gpointer data)
 {
 	struct geo_attr *a = (struct geo_attr *)data;
 
@@ -244,8 +248,9 @@ static void free_geo_attr(gpointer data)
 	g_free(a);
 }
 
-int store_geo_attr(struct ticket_config *tk, const char *name,
-		   const char *val, int notime)
+int
+store_geo_attr(struct ticket_config *tk, const char *name, const char *val,
+               int notime)
 {
 	struct geo_attr *a;
 	GDestroyNotify free_geo_attr_notify = free_geo_attr;
@@ -289,7 +294,8 @@ int store_geo_attr(struct ticket_config *tk, const char *name,
 	return 0;
 }
 
-static cmd_result_t attr_set(struct ticket_config *tk, struct boothc_attr_msg *msg)
+static cmd_result_t
+attr_set(struct ticket_config *tk, struct boothc_attr_msg *msg)
 {
 	int rc;
 
@@ -301,7 +307,8 @@ static cmd_result_t attr_set(struct ticket_config *tk, struct boothc_attr_msg *m
 	return RLT_SUCCESS;
 }
 
-static cmd_result_t attr_del(struct ticket_config *tk, struct boothc_attr_msg *msg)
+static cmd_result_t
+attr_del(struct ticket_config *tk, struct boothc_attr_msg *msg)
 {
 	gboolean rv;
 	gpointer orig_key, value;
@@ -347,8 +354,9 @@ append_attr(gpointer key, gpointer value, gpointer user_data)
 }
 
 
-static cmd_result_t attr_get(struct booth_config *conf, struct ticket_config *tk,
-			     int fd, struct boothc_attr_msg *msg)
+static cmd_result_t
+attr_get(struct booth_config *conf, struct ticket_config *tk, int fd,
+         struct boothc_attr_msg *msg)
 {
 	cmd_result_t rv = RLT_SUCCESS;
 	struct boothc_hdr_msg hdr;
@@ -388,8 +396,9 @@ static cmd_result_t attr_get(struct booth_config *conf, struct ticket_config *tk
 	return rv;
 }
 
-static cmd_result_t attr_list(struct booth_config *conf, struct ticket_config *tk,
-			      int fd, struct boothc_attr_msg *msg)
+static cmd_result_t
+attr_list(struct booth_config *conf, struct ticket_config *tk, int fd,
+          struct boothc_attr_msg *msg)
 {
 	GString *data;
 	cmd_result_t rv;
@@ -419,8 +428,9 @@ static cmd_result_t attr_list(struct booth_config *conf, struct ticket_config *t
 	return rv;
 }
 
-int process_attr_request(struct booth_config *conf, struct client *req_client,
-			 void *buf)
+int
+process_attr_request(struct booth_config *conf, struct client *req_client,
+                     void *buf)
 {
 	cmd_result_t rv = RLT_SYNC_FAIL;
 	struct ticket_config *tk;
@@ -472,7 +482,8 @@ reply_now:
  * only clients retrieve/manage attributes and they connect
  * directly to the target site
  */
-int attr_recv(struct booth_config *conf, void *buf, struct booth_site *source)
+int
+attr_recv(struct booth_config *conf, void *buf, struct booth_site *source)
 {
 	struct boothc_attr_msg *msg;
 	struct ticket_config *tk;

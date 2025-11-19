@@ -32,9 +32,8 @@
 #include "log.h"
 #include "manual.h"
 
-
-inline static void clear_election(struct booth_config *conf,
-				  struct ticket_config *tk)
+static inline void
+clear_election(struct booth_config *conf, struct ticket_config *tk)
 {
 	int i;
 	struct booth_site *site;
@@ -46,10 +45,9 @@ inline static void clear_election(struct booth_config *conf,
 	}
 }
 
-
-inline static void record_vote(struct ticket_config *tk,
-		struct booth_site *who,
-		struct booth_site *vote)
+static inline void
+record_vote(struct ticket_config *tk, struct booth_site *who,
+            struct booth_site *vote)
 {
 	tk_log_debug("site %s votes for %s",
 			site_string(who),
@@ -67,12 +65,10 @@ inline static void record_vote(struct ticket_config *tk,
 	}
 }
 
-
-static void update_term_from_msg(struct ticket_config *tk,
-		struct boothc_ticket_msg *msg)
+static void
+update_term_from_msg(struct ticket_config *tk, struct boothc_ticket_msg *msg)
 {
 	uint32_t i;
-
 
 	i = ntohl(msg->ticket.term);
 	/* if we failed to start the election, then accept the term
@@ -85,16 +81,15 @@ static void update_term_from_msg(struct ticket_config *tk,
 	}
 }
 
-
-static void set_ticket_expiry(struct ticket_config *tk,
-		int duration)
+static void
+set_ticket_expiry(struct ticket_config *tk, int duration)
 {
 	set_future_time(&tk->term_expires, duration);
 }
 
-static void update_ticket_from_msg(struct ticket_config *tk,
-		struct booth_site *sender,
-		struct boothc_ticket_msg *msg)
+static void
+update_ticket_from_msg(struct ticket_config *tk, struct booth_site *sender,
+                       struct boothc_ticket_msg *msg)
 {
 	int duration;
 
@@ -106,16 +101,15 @@ static void update_ticket_from_msg(struct ticket_config *tk,
 	update_term_from_msg(tk, msg);
 }
 
-
-static void copy_ticket_from_msg(struct ticket_config *tk,
-		struct boothc_ticket_msg *msg)
+static void
+copy_ticket_from_msg(struct ticket_config *tk, struct boothc_ticket_msg *msg)
 {
 	set_ticket_expiry(tk, msg_term_time(msg));
 	tk->current_term = ntohl(msg->ticket.term);
 }
 
-static void become_follower(struct ticket_config *tk,
-		struct boothc_ticket_msg *msg)
+static void
+become_follower(struct ticket_config *tk, struct boothc_ticket_msg *msg)
 {
 	copy_ticket_from_msg(tk, msg);
 	set_state(tk, ST_FOLLOWER);
@@ -130,8 +124,8 @@ static void become_follower(struct ticket_config *tk,
 	}
 }
 
-
-static void won_elections(struct booth_config *conf, struct ticket_config *tk)
+static void
+won_elections(struct booth_config *conf, struct ticket_config *tk)
 {
 	set_leader(tk, local);
 	set_state(tk, ST_LEADER);
@@ -155,7 +149,8 @@ static void won_elections(struct booth_config *conf, struct ticket_config *tk)
 /* if more than one member got the same (and maximum within that
  * election) number of votes, then that is a tie
  */
-static int is_tie(struct booth_config *conf, struct ticket_config *tk)
+static int
+is_tie(struct booth_config *conf, struct ticket_config *tk)
 {
 	int i;
 	struct booth_site *v;
@@ -183,8 +178,8 @@ static int is_tie(struct booth_config *conf, struct ticket_config *tk)
 	return max_cnt > 1;
 }
 
-static struct booth_site *majority_votes(struct booth_config *conf,
-					 struct ticket_config *tk)
+static struct booth_site *
+majority_votes(struct booth_config *conf, struct ticket_config *tk)
 {
 	int i, n;
 	struct booth_site *v;
@@ -216,8 +211,8 @@ static struct booth_site *majority_votes(struct booth_config *conf,
 	return NULL;
 }
 
-
-void elections_end(struct booth_config *conf, struct ticket_config *tk)
+void
+elections_end(struct booth_config *conf, struct ticket_config *tk)
 {
 	struct booth_site *new_leader;
 
@@ -244,12 +239,10 @@ void elections_end(struct booth_config *conf, struct ticket_config *tk)
 	}
 }
 
-
-static int newer_term(struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg,
-		int in_election)
+static int
+newer_term(struct ticket_config *tk, struct booth_site *sender,
+           struct booth_site *leader, struct boothc_ticket_msg *msg,
+           int in_election)
 {
 	uint32_t term;
 
@@ -281,10 +274,9 @@ static int newer_term(struct ticket_config *tk,
 	return 1;
 }
 
-static int msg_term_invalid(struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg)
+static int
+msg_term_invalid(struct ticket_config *tk, struct booth_site *sender,
+                 struct booth_site *leader, struct boothc_ticket_msg *msg)
 {
 	uint32_t term;
 
@@ -299,9 +291,10 @@ static int msg_term_invalid(struct ticket_config *tk,
 	return 1;
 }
 
-static int term_too_low(struct booth_config *conf, struct ticket_config *tk,
-			struct booth_site *sender, struct booth_site *leader,
-			struct boothc_ticket_msg *msg)
+static int
+term_too_low(struct booth_config *conf, struct ticket_config *tk,
+             struct booth_site *sender, struct booth_site *leader,
+             struct boothc_ticket_msg *msg)
 {
 	uint32_t term;
 
@@ -319,13 +312,11 @@ static int term_too_low(struct booth_config *conf, struct ticket_config *tk,
 	return 1;
 }
 
-
-
-
 /* For follower. */
-static int answer_HEARTBEAT(struct booth_config *conf, struct ticket_config *tk,
-			    struct booth_site *sender, struct booth_site *leader,
-			    struct boothc_ticket_msg *msg)
+static int
+answer_HEARTBEAT(struct booth_config *conf, struct ticket_config *tk,
+                 struct booth_site *sender, struct booth_site *leader,
+                 struct boothc_ticket_msg *msg)
 {
 	uint32_t term;
 
@@ -363,10 +354,10 @@ static int answer_HEARTBEAT(struct booth_config *conf, struct ticket_config *tk,
 	return send_msg(conf, OP_ACK, tk, sender, msg);
 }
 
-
-static int process_UPDATE (struct booth_config *conf, struct ticket_config *tk,
-			   struct booth_site *sender, struct booth_site *leader,
-			   struct boothc_ticket_msg *msg)
+static int
+process_UPDATE(struct booth_config *conf, struct ticket_config *tk,
+               struct booth_site *sender, struct booth_site *leader,
+               struct boothc_ticket_msg *msg)
 {
 	if (is_owned(tk) && sender != tk->leader) {
 		tk_log_warn("different leader %s wants to update "
@@ -390,9 +381,10 @@ static int process_UPDATE (struct booth_config *conf, struct ticket_config *tk,
 	return send_msg(conf, OP_ACK, tk, sender, msg);
 }
 
-static int process_REVOKE(struct booth_config *conf, struct ticket_config *tk,
-			  struct booth_site *sender, struct booth_site *leader,
-			  struct boothc_ticket_msg *msg)
+static int
+process_REVOKE(struct booth_config *conf, struct ticket_config *tk,
+               struct booth_site *sender, struct booth_site *leader,
+               struct boothc_ticket_msg *msg)
 {
 	int rv;
 
@@ -429,11 +421,11 @@ static int process_REVOKE(struct booth_config *conf, struct ticket_config *tk,
 	return rv;
 }
 
-
 /* For leader. */
-static int process_ACK(struct booth_config *conf, struct ticket_config *tk,
-		       struct booth_site *sender, struct booth_site *leader,
-		       struct boothc_ticket_msg *msg)
+static int
+process_ACK(struct booth_config *conf, struct ticket_config *tk,
+            struct booth_site *sender, struct booth_site *leader,
+            struct boothc_ticket_msg *msg)
 {
 	uint32_t term;
 	int req;
@@ -479,10 +471,10 @@ static int process_ACK(struct booth_config *conf, struct ticket_config *tk,
 	return 0;
 }
 
-
-static int process_VOTE_FOR(struct booth_config *conf, struct ticket_config *tk,
-			    struct booth_site *sender, struct booth_site *leader,
-			    struct boothc_ticket_msg *msg)
+static int
+process_VOTE_FOR(struct booth_config *conf, struct ticket_config *tk,
+                 struct booth_site *sender, struct booth_site *leader,
+                 struct boothc_ticket_msg *msg)
 {
 	if (leader == no_leader) {
 		/* leader wants to step down? */
@@ -531,13 +523,9 @@ static int process_VOTE_FOR(struct booth_config *conf, struct ticket_config *tk,
 	return 0;
 }
 
-
-static int process_REJECTED(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-		)
+static int
+process_REJECTED(struct ticket_config *tk, struct booth_site *sender,
+                 struct booth_site *leader, struct boothc_ticket_msg *msg)
 {
 	uint32_t rv;
 
@@ -614,8 +602,8 @@ static int process_REJECTED(
 	return 0;
 }
 
-
-static int ticket_seems_ok(struct ticket_config *tk)
+static int
+ticket_seems_ok(struct ticket_config *tk)
 {
 	int left;
 
@@ -634,13 +622,9 @@ static int ticket_seems_ok(struct ticket_config *tk)
 	return 0;
 }
 
-
-static int test_reason(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-		)
+static int
+test_reason(struct ticket_config *tk, struct booth_site *sender,
+            struct booth_site *leader, struct boothc_ticket_msg *msg)
 {
 	int reason;
 
@@ -668,11 +652,11 @@ static int test_reason(
 	return 0;
 }
 
-
 /* §5.2 */
-static int answer_REQ_VOTE(struct booth_config *conf, struct ticket_config *tk,
-			   struct booth_site *sender, struct booth_site *leader,
-			   struct boothc_ticket_msg *msg)
+static int
+answer_REQ_VOTE(struct booth_config *conf, struct ticket_config *tk,
+                struct booth_site *sender, struct booth_site *leader,
+                struct boothc_ticket_msg *msg)
 {
 	int valid;
 	struct boothc_ticket_msg omsg;
@@ -734,8 +718,10 @@ vote_for_sender:
 #define is_reason(r, tk) \
 	(reason == (r) || (reason == OR_AGAIN && (tk)->election_reason == (r)))
 
-int new_election(struct booth_config *conf, struct ticket_config *tk,
-		 struct booth_site *preference, int update_term, cmd_reason_t reason)
+int
+new_election(struct booth_config *conf, struct ticket_config *tk,
+             struct booth_site *preference, int update_term,
+             cmd_reason_t reason)
 {
 	struct booth_site *new_leader;
 
@@ -813,18 +799,15 @@ int new_election(struct booth_config *conf, struct ticket_config *tk,
 	return 0;
 }
 
-
 /* we were a leader and somebody says that they have a more up
  * to date ticket
  * there was probably connectivity loss
  * tricky
  */
-static int leader_handle_newer_ticket(
-		struct ticket_config *tk,
-		struct booth_site *sender,
-		struct booth_site *leader,
-		struct boothc_ticket_msg *msg
-	       )
+static int
+leader_handle_newer_ticket(struct ticket_config *tk, struct booth_site *sender,
+                           struct booth_site *leader,
+                           struct boothc_ticket_msg *msg)
 {
 	update_term_from_msg(tk, msg);
 	if (leader != no_leader && leader && leader != local) {
@@ -847,9 +830,10 @@ static int leader_handle_newer_ticket(
 }
 
 /* reply to STATUS */
-static int process_MY_INDEX(struct booth_config *conf, struct ticket_config *tk,
-			    struct booth_site *sender, struct booth_site *leader,
-			    struct boothc_ticket_msg *msg)
+static int
+process_MY_INDEX(struct booth_config *conf, struct ticket_config *tk,
+                 struct booth_site *sender, struct booth_site *leader,
+                 struct boothc_ticket_msg *msg)
 {
 	int i;
 	int expired;
@@ -909,10 +893,10 @@ static int process_MY_INDEX(struct booth_config *conf, struct ticket_config *tk,
 	return 0;
 }
 
-
-int raft_answer(struct booth_config *conf, struct ticket_config *tk,
-	        struct booth_site *sender, struct booth_site *leader,
-	        struct boothc_ticket_msg *msg)
+int
+raft_answer(struct booth_config *conf, struct ticket_config *tk,
+            struct booth_site *sender, struct booth_site *leader,
+            struct boothc_ticket_msg *msg)
 {
 	int cmd, req;
 	int rv;
