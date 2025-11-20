@@ -517,7 +517,7 @@ process_signals(struct booth_config *conf)
 }
 
 static int
-loop(const struct booth_config *conf, int fd)
+loop(struct booth_config *conf, int fd)
 {
 	workfn_t workfn;
 	void (*deadfn) (int ci);
@@ -527,7 +527,7 @@ loop(const struct booth_config *conf, int fd)
 	if (rv < 0)
 		goto fail;
 
-	rv = setup_ticket(booth_conf);
+	rv = setup_ticket(conf);
 	if (rv < 0) {
 		goto fail;
 	}
@@ -559,7 +559,7 @@ loop(const struct booth_config *conf, int fd)
 			if (pollfds[i].revents & POLLIN) {
 				workfn = clients[i].workfn;
 				if (workfn) {
-					workfn(booth_conf, i);
+					workfn(conf, i);
 				}
 			}
 			if (pollfds[i].revents &
@@ -570,9 +570,9 @@ loop(const struct booth_config *conf, int fd)
 			}
 		}
 
-		process_tickets(booth_conf);
+		process_tickets(conf);
 
-		if (process_signals(booth_conf) != 0) {
+		if (process_signals(conf) != 0) {
 			return 0;
 		}
 	}
