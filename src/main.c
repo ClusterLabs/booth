@@ -1433,19 +1433,19 @@ quit:
 }
 
 static int
-limit_this_process(void)
+limit_this_process(const struct booth_config *conf)
 {
 	int rv;
 	if (!is_root())
 		return 0;
 
-	if (setregid(booth_conf->gid, booth_conf->gid) < 0) {
+	if (setregid(conf->gid, conf->gid) < 0) {
 		rv = errno;
 		log_error("setregid() didn't work: %s", strerror(rv));
 		return rv;
 	}
 
-	if (setreuid(booth_conf->uid, booth_conf->uid) < 0) {
+	if (setreuid(conf->uid, conf->uid) < 0) {
 		rv = errno;
 		log_error("setreuid() didn't work: %s", strerror(rv));
 		return rv;
@@ -1550,7 +1550,7 @@ do_server(struct booth_config **conf, int type)
 	               DAEMON_NAME, cl.configfile, type_to_string(local->type),
 	               local->addr_string, site_port(local));
 
-	rv = limit_this_process();
+	rv = limit_this_process(*conf);
 	if (rv)
 		return rv;
 
