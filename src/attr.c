@@ -394,7 +394,7 @@ attr_list(struct booth_config *conf, struct ticket_config *tk, int fd,
           struct boothc_attr_msg *msg)
 {
 	GString *data = g_string_sized_new(512);
-	cmd_result_t rv;
+	cmd_result_t rv = RLT_SUCCESS;
 	struct boothc_hdr_msg hdr;
 
 	/*
@@ -407,7 +407,10 @@ attr_list(struct booth_config *conf, struct ticket_config *tk, int fd,
 
 	init_header(conf, &hdr.header, ATTR_LIST, 0, 0, RLT_SUCCESS, 0,
 		sizeof(hdr) + data->len);
-	rv = send_header_plus(conf, fd, &hdr, data->str, data->len);
+
+	if (send_header_plus(conf, fd, &hdr, data->str, data->len) < 0) {
+		rv = RLT_SYNC_FAIL;
+	}
 
 	g_string_free(data, TRUE);
 	return rv;
