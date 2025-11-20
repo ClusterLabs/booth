@@ -147,13 +147,13 @@ ticket_dangerous(const struct booth_config *conf, struct ticket_config *tk)
 }
 
 int
-ticket_write(struct ticket_config *tk)
+ticket_write(const struct booth_config *conf, struct ticket_config *tk)
 {
 	if (local->type != SITE) {
 		return -EINVAL;
 	}
 
-	if (ticket_dangerous(booth_conf, tk)) {
+	if (ticket_dangerous(conf, tk)) {
 		return 1;
 	}
 
@@ -201,7 +201,7 @@ ext_prog_failed(struct booth_config *conf, struct ticket_config *tk,
 
 		save_committed_tkt(tk);
 		reset_ticket(tk);
-		ticket_write(tk);
+		ticket_write(conf, tk);
 
 		if (start_election) {
 			ticket_broadcast(conf, tk, OP_VOTE_FOR, OP_REQ_VOTE,
@@ -217,7 +217,7 @@ ext_prog_failed(struct booth_config *conf, struct ticket_config *tk,
 
 		save_committed_tkt(tk);
 		reset_ticket(tk);
-		ticket_write(tk);
+		ticket_write(conf, tk);
 		log_error("external test failed on the specified machine, cannot acquire a manual ticket");
 	}
 }
@@ -406,7 +406,7 @@ start_revoke_ticket(struct booth_config *conf, struct ticket_config *tk)
 
 	save_committed_tkt(tk);
 	reset_ticket_and_set_no_leader(tk);
-	ticket_write(tk);
+	ticket_write(conf, tk);
 	ticket_broadcast(conf, tk, OP_REVOKE, OP_ACK, RLT_SUCCESS, OR_ADMIN);
 }
 
@@ -628,7 +628,7 @@ update_ticket_state(struct ticket_config *tk, struct booth_site *sender)
 			}
 
 			disown_ticket(tk);
-			ticket_write(tk);
+			ticket_write(booth_conf, tk);
 			set_state(tk, ST_FOLLOWER);
 			set_next_state(tk, ST_FOLLOWER);
 		} else {
@@ -874,7 +874,7 @@ leader_update_ticket(struct booth_config *conf, struct ticket_config *tk)
 	}
 
 	if (tk->ticket_updated < 2) {
-		rv2 = ticket_write(tk);
+		rv2 = ticket_write(conf, tk);
 		switch(rv2) {
 		case 0:
 			tk->ticket_updated = 2;
@@ -1065,7 +1065,7 @@ ticket_lost(struct ticket_config *tk)
 	set_state(tk, ST_FOLLOWER);
 
 	if (local->type == SITE) {
-		ticket_write(tk);
+		ticket_write(booth_conf, tk);
 		schedule_election(tk, reason);
 	}
 }
@@ -1201,7 +1201,7 @@ ticket_cron(struct booth_config *conf, struct ticket_config *tk)
 out:
 	tk->next_state = 0;
 	if (!tk->in_election && tk->update_cib) {
-		ticket_write(tk);
+		ticket_write(conf, tk);
 	}
 }
 

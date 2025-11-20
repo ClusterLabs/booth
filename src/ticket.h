@@ -189,7 +189,7 @@ int ticket_answer_list(struct booth_config *conf, int fd);
 int process_client_request(struct booth_config *conf, struct client *req_client,
 			   void *buf);
 
-int ticket_write(struct ticket_config *tk);
+int ticket_write(const struct booth_config *conf, struct ticket_config *tk);
 
 /**
  * @internal

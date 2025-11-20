@@ -120,7 +120,7 @@ become_follower(struct ticket_config *tk, struct boothc_ticket_msg *msg)
 	 */
 	if (tk->is_granted) {
 		disown_ticket(tk);
-		ticket_write(tk);
+		ticket_write(booth_conf, tk);
 	}
 }
 
@@ -373,7 +373,7 @@ process_UPDATE(struct booth_config *conf, struct ticket_config *tk,
 
 	become_follower(tk, msg);
 	set_leader(tk, leader);
-	ticket_write(tk);
+	ticket_write(conf, tk);
 
 	/* run ticket_cron if the ticket expires */
 	set_ticket_wakeup(tk);
@@ -414,7 +414,7 @@ process_REVOKE(struct booth_config *conf, struct ticket_config *tk,
 				site_string(tk->leader));
 		save_committed_tkt(tk);
 		reset_ticket_and_set_no_leader(tk);
-		ticket_write(tk);
+		ticket_write(conf, tk);
 		rv = send_msg(conf, OP_ACK, tk, sender, msg);
 	}
 
@@ -486,7 +486,7 @@ process_VOTE_FOR(struct booth_config *conf, struct ticket_config *tk,
 			reset_ticket(tk);
 			set_state(tk, ST_FOLLOWER);
 			if (local->type == SITE) {
-				ticket_write(tk);
+				ticket_write(conf, tk);
 				schedule_election(tk, OR_STEPDOWN);
 			}
 		} else {
