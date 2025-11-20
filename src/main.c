@@ -527,7 +527,7 @@ process_signals(void)
 	}
 	if (sig_chld_handler_called) {
 		sig_chld_handler_called = 0;
-		wait_child(SIGCHLD);
+		wait_child(booth_conf, SIGCHLD);
 	}
 
 	return 0;
