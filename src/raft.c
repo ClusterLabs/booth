@@ -134,7 +134,7 @@ won_elections(struct booth_config *conf, struct ticket_config *tk)
 	time_reset(&tk->election_end);
 	tk->voted_for = NULL;
 
-	if (is_time_set(&tk->delay_commit) && all_sites_replied(tk)) {
+	if (is_time_set(&tk->delay_commit) && all_sites_replied(conf, tk)) {
 		time_reset(&tk->delay_commit);
 		tk_log_debug("reset delay commit as all sites replied");
 	}

@@ -111,7 +111,7 @@ check_ticket(struct booth_config *conf, char *ticket,
  * missing site could be holding a ticket or not
  */
 static int
-ticket_dangerous(struct ticket_config *tk)
+ticket_dangerous(const struct booth_config *conf, struct ticket_config *tk)
 {
 	int tdiff;
 	/* we may be invoked often, don't spam the log unnecessarily
@@ -122,7 +122,7 @@ ticket_dangerous(struct ticket_config *tk)
 		return 0;
 	}
 
-	if (is_past(&tk->delay_commit) || all_sites_replied(tk)) {
+	if (is_past(&tk->delay_commit) || all_sites_replied(conf, tk)) {
 		if (tk->leader == local) {
 			tk_log_info("%s, committing to CIB",
 				    is_past(&tk->delay_commit) ?
@@ -153,7 +153,7 @@ ticket_write(struct ticket_config *tk)
 		return -EINVAL;
 	}
 
-	if (ticket_dangerous(tk)) {
+	if (ticket_dangerous(booth_conf, tk)) {
 		return 1;
 	}
 

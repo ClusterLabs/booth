@@ -305,9 +305,9 @@ all_replied(const struct booth_config *conf, struct ticket_config *tk)
 }
 
 static inline int
-all_sites_replied(struct ticket_config *tk)
+all_sites_replied(const struct booth_config *conf, struct ticket_config *tk)
 {
-	return !((tk->acks_received & booth_conf->sites_bits) ^ booth_conf->sites_bits);
+	return ((tk->acks_received & conf->sites_bits) ^ conf->sites_bits) == 0;
 }
 
 #endif  // _INLINE_FN_H
