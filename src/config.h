@@ -334,8 +334,6 @@ struct booth_config {
     struct ticket_config *ticket;
 };
 
-extern struct booth_config *booth_conf;
-
 /**
  * @internal
  * Parse booth configuration file and store as structured data

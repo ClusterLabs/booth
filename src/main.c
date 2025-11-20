@@ -107,9 +107,6 @@ typedef enum
 
 int poll_timeout;
 
-
-
-struct booth_config *booth_conf;
 struct command_line cl;
 
 /*
@@ -1649,6 +1646,7 @@ main(int argc, char *argv[], char *envp[])
 {
 	int rv;
 	const char *cp;
+	struct booth_config *conf = NULL;
 #ifdef LOGGING_LIBQB
 	enum qb_log_target_slot i;
 #endif
@@ -1688,21 +1686,21 @@ main(int argc, char *argv[], char *envp[])
 
 	switch (cl.type) {
 	case STATUS:
-		rv = do_status(&booth_conf, cl.type);
+		rv = do_status(&conf, cl.type);
 		break;
 
 	case ARBITRATOR:
 	case DAEMON:
 	case SITE:
-		rv = do_server(&booth_conf, cl.type);
+		rv = do_server(&conf, cl.type);
 		break;
 
 	case CLIENT:
-		rv = do_client(&booth_conf);
+		rv = do_client(&conf);
 		break;
 
 	case GEOSTORE:
-		rv = do_attr(&booth_conf);
+		rv = do_attr(&conf);
 		break;
 	}
 
