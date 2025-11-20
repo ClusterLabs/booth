@@ -52,7 +52,8 @@ interpret_rv(int rv)
 }
 
 static int
-pcmk_write_ticket_atomic(struct ticket_config *tk, int grant)
+pcmk_write_ticket_atomic(const struct booth_config *conf,
+                         struct ticket_config *tk, int grant)
 {
 	char cmd[COMMAND_MAX];
 	int rv;
@@ -73,7 +74,7 @@ pcmk_write_ticket_atomic(struct ticket_config *tk, int grant)
 			(int32_t)get_node_id(tk->leader),
 			(int64_t)wall_ts(&tk->term_expires),
 			(int64_t)tk->current_term,
-			booth_conf->name);
+			conf->name);
 
 	if (rv < 0 || rv >= COMMAND_MAX) {
 		log_error("pcmk_write_ticket_atomic: cannot format crm_ticket cmdline (probably too long)");
@@ -91,13 +92,13 @@ pcmk_write_ticket_atomic(struct ticket_config *tk, int grant)
 static int
 pcmk_grant_ticket(struct ticket_config *tk)
 {
-	return pcmk_write_ticket_atomic(tk, +1);
+	return pcmk_write_ticket_atomic(booth_conf, tk, +1);
 }
 
 static int
 pcmk_revoke_ticket(struct ticket_config *tk)
 {
-	return pcmk_write_ticket_atomic(tk, -1);
+	return pcmk_write_ticket_atomic(booth_conf, tk, -1);
 }
 
 static int
