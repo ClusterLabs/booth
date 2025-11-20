@@ -366,22 +366,6 @@ read_authkey(struct booth_config *conf)
 	return (conf->authkey_len >= BOOTH_MIN_KEY_LEN) ? 0 : -1;
 }
 
-int
-update_authkey(void)
-{
-	struct stat statbuf;
-
-	if (stat(booth_conf->authfile, &statbuf) < 0) {
-		log_error("cannot stat authentication file %s: %s",
-			booth_conf->authfile, strerror(errno));
-		return -1;
-	}
-	if (statbuf.st_mtime > booth_conf->authstat.st_mtime) {
-		return read_authkey(booth_conf);
-	}
-	return 0;
-}
-
 static int
 setup_config(struct booth_config **conf, int type)
 {
