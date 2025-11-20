@@ -498,7 +498,7 @@ write_daemon_state(const struct booth_config *conf, int fd, int state)
 }
 
 static int
-process_signals(void)
+process_signals(struct booth_config *conf)
 {
 	if (sig_exit_handler_called) {
 		log_info("caught signal %d", sig_exit_handler_sig);
@@ -506,11 +506,11 @@ process_signals(void)
 	}
 	if (sig_usr1_handler_called) {
 		sig_usr1_handler_called = 0;
-		tickets_log_info(booth_conf);
+		tickets_log_info(conf);
 	}
 	if (sig_chld_handler_called) {
 		sig_chld_handler_called = 0;
-		wait_child(booth_conf, SIGCHLD);
+		wait_child(conf, SIGCHLD);
 	}
 
 	return 0;
@@ -572,7 +572,7 @@ loop(const struct booth_config *conf, int fd)
 
 		process_tickets(booth_conf);
 
-		if (process_signals() != 0) {
+		if (process_signals(booth_conf) != 0) {
 			return 0;
 		}
 	}
