@@ -109,7 +109,8 @@ copy_ticket_from_msg(struct ticket_config *tk, struct boothc_ticket_msg *msg)
 }
 
 static void
-become_follower(struct ticket_config *tk, struct boothc_ticket_msg *msg)
+become_follower(const struct booth_config *conf, struct ticket_config *tk,
+                struct boothc_ticket_msg *msg)
 {
 	copy_ticket_from_msg(tk, msg);
 	set_state(tk, ST_FOLLOWER);
@@ -120,7 +121,7 @@ become_follower(struct ticket_config *tk, struct boothc_ticket_msg *msg)
 	 */
 	if (tk->is_granted) {
 		disown_ticket(tk);
-		ticket_write(booth_conf, tk);
+		ticket_write(conf, tk);
 	}
 }
 
@@ -344,7 +345,7 @@ answer_HEARTBEAT(struct booth_config *conf, struct ticket_config *tk,
 	/* Needed? */
 	newer_term(tk, sender, leader, msg, 0);
 
-	become_follower(tk, msg);
+	become_follower(conf, tk, msg);
 	/* Racy??? */
 	assert(sender == leader || !leader);
 
@@ -371,7 +372,7 @@ process_UPDATE(struct booth_config *conf, struct ticket_config *tk,
 	tk_log_debug("leader %s wants to update our ticket",
 			site_string(leader));
 
-	become_follower(tk, msg);
+	become_follower(conf, tk, msg);
 	set_leader(tk, leader);
 	ticket_write(conf, tk);
 
@@ -524,8 +525,9 @@ process_VOTE_FOR(struct booth_config *conf, struct ticket_config *tk,
 }
 
 static int
-process_REJECTED(struct ticket_config *tk, struct booth_site *sender,
-                 struct booth_site *leader, struct boothc_ticket_msg *msg)
+process_REJECTED(const struct booth_config *conf, struct ticket_config *tk,
+                 struct booth_site *sender, struct booth_site *leader,
+                 struct boothc_ticket_msg *msg)
 {
 	uint32_t rv;
 
@@ -550,7 +552,7 @@ process_REJECTED(struct ticket_config *tk, struct booth_site *sender,
 				);
 		set_leader(tk, leader);
 		tk->expect_more_rejects = 1;
-		become_follower(tk, msg);
+		become_follower(conf, tk, msg);
 		return 0;
 	}
 
@@ -571,7 +573,7 @@ process_REJECTED(struct ticket_config *tk, struct booth_site *sender,
 					site_string(leader));
 		}
 		set_leader(tk, leader);
-		become_follower(tk, msg);
+		become_follower(conf, tk, msg);
 		tk->expect_more_rejects = 1;
 		return 0;
 	}
@@ -583,7 +585,7 @@ process_REJECTED(struct ticket_config *tk, struct booth_site *sender,
 		if (leader && leader != no_leader) {
 			tk_log_warn("our ticket is outdated, granted to %s",
 				site_string(leader));
-			become_follower(tk, msg);
+			become_follower(conf, tk, msg);
 		} else {
 			tk_log_warn("our ticket is outdated and revoked");
 			update_ticket_from_msg(tk, sender, msg);
@@ -973,7 +975,7 @@ raft_answer(struct booth_config *conf, struct ticket_config *tk,
 		}
 		break;
 	case OP_REJECTED:
-		rv = process_REJECTED(tk, sender, leader, msg);
+		rv = process_REJECTED(conf, tk, sender, leader, msg);
 		break;
 	case OP_REVOKE:
 		rv = process_REVOKE(conf, tk, sender, leader, msg);
