@@ -249,7 +249,7 @@ format_peers(char **pdata, unsigned int *len)
 		return -ENOMEM;
 
 	cp = data;
-	_FOREACH_NODE(i, s) {
+	FOREACH_NODE(booth_conf, i, s) {
 		if (s == local)
 			continue;
 		strftime(time_str, sizeof(time_str), "%F %T",

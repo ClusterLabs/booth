@@ -45,11 +45,6 @@ extern int TIME_RES;
 	     (n_ = (b_)->site + i_, i_ < (b_)->site_count); \
 	     i_++)
 
-#define _FOREACH_NODE(i_, n_) \
-	for (i_ = 0; \
-	     (n_ = booth_conf->site + i_, i_ < booth_conf->site_count); \
-	     i_++)
-
 #define set_leader(tk, who) do { \
 	if (who == NULL) { \
 		mark_ticket_as_revoked_from_leader(tk); \
