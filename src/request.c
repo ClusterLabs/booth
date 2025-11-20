@@ -49,14 +49,6 @@ add_req(struct ticket_config *tk, struct client *req_client,
 	return rp;
 }
 
-int
-get_req_id(const void *rp)
-{
-	if (!rp)
-		return -1;
-	return ((struct request *)rp)->id;
-}
-
 static void
 del_req(GList *lp)
 {

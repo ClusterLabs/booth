@@ -63,6 +63,4 @@ void *add_req(struct ticket_config *tk, struct client *req_client,
 void foreach_tkt_req(struct booth_config *conf, struct ticket_config *tk,
 		     req_fp f);
 
-int get_req_id(const void *rp);
-
 #endif /* _REQUEST_H */
