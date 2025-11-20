@@ -19,6 +19,7 @@
 #ifndef _INLINE_FN_H
 #define _INLINE_FN_H
 
+#include <stdbool.h>
 #include <time.h>
 #include <sys/time.h>
 #include <assert.h>
@@ -26,6 +27,12 @@
 #include "timer.h"
 #include "config.h"
 #include "transport.h"
+
+static inline bool
+is_auth_req(const struct booth_config *conf)
+{
+    return (conf != NULL) && (conf->authkey[0] != '\0');
+}
 
 static inline int
 get_local_id(void)
@@ -85,7 +92,7 @@ init_header_bare(struct boothc_header *h)
 	h->magic   = htonl(BOOTHC_MAGIC);
 	h->version = htonl(BOOTHC_VERSION);
 	h->from    = htonl(local->site_id);
-	if (is_auth_req()) {
+	if (is_auth_req(booth_conf)) {
 		get_time(&now);
 		h->opts  = htonl(BOOTH_OPT_AUTH);
 		h->secs  = htonl(secs_since_epoch(&now));
@@ -107,7 +114,7 @@ init_header(struct boothc_header *h, int cmd, int request, int options,
 {
 	init_header_bare(h);
 	h->length  = htonl(data_len -
-		(is_auth_req() ? 0 : sizeof(struct hmac)));
+		(is_auth_req(booth_conf) ? 0 : sizeof(struct hmac)));
 	h->cmd     = htonl(cmd);
 	h->request = htonl(request);
 	h->options = htonl(options);

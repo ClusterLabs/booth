@@ -336,8 +336,6 @@ struct booth_config {
 
 extern struct booth_config *booth_conf;
 
-#define is_auth_req() (booth_conf->authkey[0] != '\0')
-
 /**
  * @internal
  * Parse booth configuration file and store as structured data
