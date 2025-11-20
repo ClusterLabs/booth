@@ -334,36 +334,36 @@ trim_key(struct booth_config *conf)
 }
 
 static int
-read_authkey(void)
+read_authkey(struct booth_config *conf)
 {
 	int fd;
 
-	booth_conf->authkey[0] = '\0';
-	fd = open(booth_conf->authfile, O_RDONLY);
+	conf->authkey[0] = '\0';
+	fd = open(conf->authfile, O_RDONLY);
 	if (fd < 0) {
 		log_error("cannot open %s: %s",
-			booth_conf->authfile, strerror(errno));
+			conf->authfile, strerror(errno));
 		return -1;
 	}
-	if (fstat(fd, &booth_conf->authstat) < 0) {
+	if (fstat(fd, &conf->authstat) < 0) {
 		log_error("cannot stat authentication file %s (%d): %s",
-			booth_conf->authfile, fd, strerror(errno));
+			conf->authfile, fd, strerror(errno));
 		close(fd);
 		return -1;
 	}
-	if (booth_conf->authstat.st_mode & (S_IRGRP | S_IROTH)) {
+	if (conf->authstat.st_mode & (S_IRGRP | S_IROTH)) {
 		log_error("%s: file shall not be readable for anyone but the owner",
-			booth_conf->authfile);
+			conf->authfile);
 		close(fd);
 		return -1;
 	}
-	booth_conf->authkey_len = read(fd, booth_conf->authkey, BOOTH_MAX_KEY_LEN);
+	conf->authkey_len = read(fd, conf->authkey, BOOTH_MAX_KEY_LEN);
 	close(fd);
-	trim_key(booth_conf);
+	trim_key(conf);
 	log_debug("read key of size %d in authfile %s",
-		booth_conf->authkey_len, booth_conf->authfile);
+		conf->authkey_len, conf->authfile);
 	/* make sure that the key is of minimum length */
-	return (booth_conf->authkey_len >= BOOTH_MIN_KEY_LEN) ? 0 : -1;
+	return (conf->authkey_len >= BOOTH_MIN_KEY_LEN) ? 0 : -1;
 }
 
 int
@@ -377,7 +377,7 @@ update_authkey(void)
 		return -1;
 	}
 	if (statbuf.st_mtime > booth_conf->authstat.st_mtime) {
-		return read_authkey();
+		return read_authkey(booth_conf);
 	}
 	return 0;
 }
@@ -395,7 +395,7 @@ setup_config(struct booth_config **conf, int type)
 	}
 
 	if ((*conf)->authfile[0] != '\0') {
-		rv = read_authkey();
+		rv = read_authkey(*conf);
 		if (rv < 0)
 			goto out;
 #if HAVE_LIBGCRYPT
