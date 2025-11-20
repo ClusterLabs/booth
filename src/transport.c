@@ -408,7 +408,7 @@ retry:
 
 
 /* Only used for client requests (tcp) */
-int
+static int
 read_client(struct client *req_cl)
 {
 	char *msg;

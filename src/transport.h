@@ -72,7 +72,6 @@ extern const struct booth_transport booth_transport[TRANSPORT_ENTRIES];
 int find_myself(struct booth_config *conf, struct booth_site **me,
 		int fuzzy_allowed);
 
-int read_client(struct client *req_cl);
 int check_boothc_header(struct boothc_header *data, int len_incl_data);
 
 int setup_tcp_listener(int test_only);
