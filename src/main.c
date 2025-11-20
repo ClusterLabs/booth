@@ -394,7 +394,7 @@ setup_config(struct booth_config **conf, int type)
 		goto out;
 	}
 
-	if (booth_conf->authfile[0] != '\0') {
+	if ((*conf)->authfile[0] != '\0') {
 		rv = read_authkey();
 		if (rv < 0)
 			goto out;
@@ -418,17 +418,17 @@ setup_config(struct booth_config **conf, int type)
 
 	/* Set "local" pointer, ignoring errors. */
 	if (cl.type == DAEMON && cl.site[0]) {
-		if (!find_site_by_name(booth_conf, cl.site, &local, 1)) {
+		if (!find_site_by_name(*conf, cl.site, &local, 1)) {
 			log_error("Cannot find \"%s\" in the configuration.",
 					cl.site);
 			return -EINVAL;
 		}
 		local->local = 1;
 	} else {
-		find_myself(booth_conf, NULL, type == CLIENT || type == GEOSTORE);
+		find_myself(*conf, NULL, (type == CLIENT) || (type == GEOSTORE));
 	}
 
-	rv = check_config(booth_conf, type);
+	rv = check_config(*conf, type);
 	if (rv < 0)
 		goto out;
 
