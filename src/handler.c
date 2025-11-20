@@ -36,7 +36,7 @@
 #include "handler.h"
 
 static int
-set_booth_env(struct ticket_config *tk)
+set_booth_env(const struct booth_config *conf, struct ticket_config *tk)
 {
 	int rv;
 	char expires[16];
@@ -44,7 +44,7 @@ set_booth_env(struct ticket_config *tk)
 	sprintf(expires, "%" PRId64, (int64_t)wall_ts(&tk->term_expires));
 	rv = setenv("BOOTH_TICKET", tk->name, 1) ||
 		setenv("BOOTH_LOCAL", local->addr_string, 1) ||
-		setenv("BOOTH_CONF_NAME", booth_conf->name, 1) ||
+		setenv("BOOTH_CONF_NAME", conf->name, 1) ||
 		setenv("BOOTH_CONF_PATH", cl.configfile, 1) ||
 		setenv("BOOTH_TICKET_EXPIRES", expires, 1);
 
@@ -66,9 +66,10 @@ closefiles(void)
 }
 
 static void
-run_ext_prog(struct ticket_config *tk, char *prog)
+run_ext_prog(const struct booth_config *conf, struct ticket_config *tk,
+             char *prog)
 {
-	if (set_booth_env(tk)) {
+	if (set_booth_env(conf, tk)) {
 		_exit(1);
 	}
 	closefiles(); /* don't leak open files */
@@ -193,7 +194,7 @@ ignore_ext_test(struct ticket_config *tk)
 }
 
 static void
-process_ext_dir(struct ticket_config *tk)
+process_ext_dir(const struct booth_config *conf, struct ticket_config *tk)
 {
 	char prog[FILENAME_MAX+1];
 	int rv, n_progs, i, status;
@@ -226,7 +227,7 @@ process_ext_dir(struct ticket_config *tk)
 			log_error("fork: %s", strerror(errno));
 			_exit(1);
 		case 0: /* child */
-			run_ext_prog(tk, prog);
+			run_ext_prog(conf, tk, prog);
 			break;  /* run_ext_prog effectively noreturn */
 		default: /* parent */
 			while (waitpid(curr_pid, &status, 0) != curr_pid)
@@ -277,9 +278,9 @@ run_handler(struct ticket_config *tk)
 		return RUNCMD_ERR;
 	case 0: /* child */
 		if (tk_test.is_dir) {
-			process_ext_dir(tk);
+			process_ext_dir(booth_conf, tk);
 		} else {
-			run_ext_prog(tk, tk_test.path);
+			run_ext_prog(booth_conf, tk, tk_test.path);
 		}
 	default: /* parent */
 		tk_test.pid = pid;
