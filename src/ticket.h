@@ -136,7 +136,8 @@ int ticket_recv(struct booth_config *conf, void *buf, struct booth_site *source)
 
 void reset_ticket(struct ticket_config *tk);
 void reset_ticket_and_set_no_leader(struct ticket_config *tk);
-void update_ticket_state(struct ticket_config *tk, struct booth_site *sender);
+void update_ticket_state(const struct booth_config *conf,
+                         struct ticket_config *tk, struct booth_site *sender);
 
 /**
  * @internal

@@ -606,7 +606,8 @@ log_reacquire_reason(struct ticket_config *tk)
 }
 
 void
-update_ticket_state(struct ticket_config *tk, struct booth_site *sender)
+update_ticket_state(const struct booth_config *conf, struct ticket_config *tk,
+                    struct booth_site *sender)
 {
 	if (tk->state == ST_CANDIDATE) {
 		tk_log_info("learned from %s about newer ticket, stopping elections",
@@ -628,7 +629,7 @@ update_ticket_state(struct ticket_config *tk, struct booth_site *sender)
 			}
 
 			disown_ticket(tk);
-			ticket_write(booth_conf, tk);
+			ticket_write(conf, tk);
 			set_state(tk, ST_FOLLOWER);
 			set_next_state(tk, ST_FOLLOWER);
 		} else {
@@ -675,7 +676,7 @@ setup_ticket(struct booth_config *conf)
 
 		if (local->type == SITE) {
 			if (!pcmk_handler.load_ticket(conf, tk)) {
-				update_ticket_state(tk, NULL);
+				update_ticket_state(conf, tk, NULL);
 			}
 
 			tk->update_cib = 1;

@@ -889,7 +889,7 @@ process_MY_INDEX(struct booth_config *conf, struct ticket_config *tk,
 	 * ignore it */
 	update_ticket_from_msg(tk, sender, msg);
 	set_leader(tk, leader);
-	update_ticket_state(tk, sender);
+	update_ticket_state(conf, tk, sender);
 	save_committed_tkt(tk);
 	set_ticket_wakeup(tk);
 	return 0;
