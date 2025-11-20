@@ -90,9 +90,9 @@ pcmk_write_ticket_atomic(const struct booth_config *conf,
 }
 
 static int
-pcmk_grant_ticket(struct ticket_config *tk)
+pcmk_grant_ticket(const struct booth_config *conf, struct ticket_config *tk)
 {
-	return pcmk_write_ticket_atomic(booth_conf, tk, +1);
+	return pcmk_write_ticket_atomic(conf, tk, +1);
 }
 
 static int

@@ -163,7 +163,7 @@ ticket_write(const struct booth_config *conf, struct ticket_config *tk)
 				    "delaying ticket grant to CIB");
 			return 1;
 		}
-		pcmk_handler.grant_ticket(tk);
+		pcmk_handler.grant_ticket(conf, tk);
 	} else {
 		pcmk_handler.revoke_ticket(tk);
 	}
