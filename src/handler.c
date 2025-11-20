@@ -257,7 +257,7 @@ process_ext_dir(const struct booth_config *conf, struct ticket_config *tk)
  * RUNCMD_MORE: program forked, results later
  */
 int
-run_handler(struct ticket_config *tk)
+run_handler(const struct booth_config *conf, struct ticket_config *tk)
 {
 	int rv = 0;
 	pid_t pid;
@@ -278,9 +278,9 @@ run_handler(struct ticket_config *tk)
 		return RUNCMD_ERR;
 	case 0: /* child */
 		if (tk_test.is_dir) {
-			process_ext_dir(booth_conf, tk);
+			process_ext_dir(conf, tk);
 		} else {
-			run_ext_prog(booth_conf, tk, tk_test.path);
+			run_ext_prog(conf, tk, tk_test.path);
 		}
 	default: /* parent */
 		tk_test.pid = pid;

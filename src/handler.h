@@ -24,7 +24,7 @@ enum {
 	RUNCMD_MORE = -2,
 };
 
-int run_handler(struct ticket_config *tk);
+int run_handler(const struct booth_config *conf, struct ticket_config *tk);
 int tk_test_exit_status(struct ticket_config *tk);
 void ignore_ext_test(struct ticket_config *tk);
 int is_ext_prog_running(struct ticket_config *tk);
