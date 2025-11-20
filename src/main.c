@@ -1705,6 +1705,8 @@ main(int argc, char *argv[], char *envp[])
 	}
 
 out:
+    free_booth_config(conf);
+
 #if HAVE_LIBGNUTLS
 	gnutls_global_deinit();
 #endif

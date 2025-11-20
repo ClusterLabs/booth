@@ -38,6 +38,15 @@
 
 static int ticket_size = 0;
 
+void
+free_booth_config(struct booth_config *conf)
+{
+    if (conf != NULL) {
+        free(conf->ticket);
+        free(conf);
+    }
+}
+
 static int
 ticket_realloc(struct booth_config *conf)
 {

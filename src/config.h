@@ -334,6 +334,8 @@ struct booth_config {
     struct ticket_config *ticket;
 };
 
+void free_booth_config(struct booth_config *conf);
+
 /**
  * @internal
  * Parse booth configuration file and store as structured data
