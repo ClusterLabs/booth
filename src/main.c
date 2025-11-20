@@ -761,7 +761,7 @@ out:
 
 
 static int
-do_command(cmd_request_t cmd)
+do_command(struct booth_config *conf, cmd_request_t cmd)
 {
 	struct booth_site *site;
 	struct boothc_ticket_msg reply;
@@ -785,7 +785,7 @@ do_command(cmd_request_t cmd)
 	if (!*cl.site)
 		site = local;
 	else {
-		if (!find_site_by_name(booth_conf, cl.site, &site, 1)) {
+		if (!find_site_by_name(conf, cl.site, &site, 1)) {
 			log_error("Site \"%s\" not configured.", cl.site);
 			goto out_close;
 		}
@@ -807,8 +807,8 @@ do_command(cmd_request_t cmd)
 	 * Although, that means that the UDP port has to be specified, too. */
 	if (!cl.msg.ticket.id[0]) {
 		/* If the loaded configuration has only a single ticket defined, use that. */
-		if (booth_conf->ticket_count == 1) {
-			strncpy(cl.msg.ticket.id, booth_conf->ticket[0].name,
+		if (conf->ticket_count == 1) {
+			strncpy(cl.msg.ticket.id, conf->ticket[0].name,
 				sizeof(cl.msg.ticket.id));
 		} else {
 			log_error("No ticket given.");
@@ -817,19 +817,19 @@ do_command(cmd_request_t cmd)
 	}
 
 redirect:
-	init_header(booth_conf, &cl.msg.header, cmd, 0, cl.options, 0, 0, sizeof(cl.msg));
+	init_header(conf, &cl.msg.header, cmd, 0, cl.options, 0, 0, sizeof(cl.msg));
 
 	rv = tpt->open(site);
 	if (rv < 0)
 		goto out_close;
 
-	rv = tpt->send(booth_conf, site, &cl.msg, sendmsglen(&cl.msg));
+	rv = tpt->send(conf, site, &cl.msg, sendmsglen(&cl.msg));
 	if (rv < 0) {
 		goto out_close;
 	}
 
 read_more:
-	rv = tpt->recv_auth(booth_conf, site, &reply, sizeof(reply));
+	rv = tpt->recv_auth(conf, site, &reply, sizeof(reply));
 	if (rv < 0) {
 		/* print any errors depending on the code sent by the
 		 * server */
@@ -841,7 +841,7 @@ read_more:
 	if (rv == 1) {
 		tpt->close(site);
 		leader_id = ntohl(reply.ticket.leader);
-		if (!find_site_by_id(booth_conf, leader_id, &site)) {
+		if (!find_site_by_id(conf, leader_id, &site)) {
 			log_error("Message with unknown redirect site %x received", leader_id);
 			rv = -1;
 			goto out_close;
@@ -1592,7 +1592,7 @@ do_client(struct booth_config **conf)
 
 	case CMD_GRANT:
 	case CMD_REVOKE:
-		rv = do_command(cl.op);
+		rv = do_command(*conf, cl.op);
 		break;
 	}
 
