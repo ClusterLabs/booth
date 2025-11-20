@@ -134,12 +134,13 @@ extern int TIME_RES, TIME_MULT;
 	(msg)->ticket.term_valid_for = htonl(term_time_left(tk)*TIME_MULT/TIME_RES)
 
 static inline void
-init_ticket_msg(struct boothc_ticket_msg *msg, int cmd, int request, int rv,
-                int reason, struct ticket_config *tk)
+init_ticket_msg(const struct booth_config *conf, struct boothc_ticket_msg *msg,
+                int cmd, int request, int rv, int reason,
+                struct ticket_config *tk)
 {
 	assert(sizeof(msg->ticket.id) == sizeof(tk->name));
 
-	init_header(booth_conf, &msg->header, cmd, request, 0, rv, reason, sizeof(*msg));
+	init_header(conf, &msg->header, cmd, request, 0, rv, reason, sizeof(*msg));
 
 	if (!tk) {
 		memset(&msg->ticket, 0, sizeof(msg->ticket));

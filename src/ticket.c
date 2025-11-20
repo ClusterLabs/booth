@@ -770,7 +770,7 @@ process_client_request(struct booth_config *conf, struct client *req_client,
 	}
 
 reply_now:
-	init_ticket_msg(&omsg, CL_RESULT, 0, rv, 0, tk);
+	init_ticket_msg(conf, &omsg, CL_RESULT, 0, rv, 0, tk);
 	send_client_msg(conf, req_client->fd, &omsg);
 	return rc;
 }
@@ -798,7 +798,7 @@ notify_client(struct booth_config *conf, struct ticket_config *tk,
 
 	tk_log_debug("notifying client %d (request %s)",
 		     client_fd, state_to_string(cmd));
-	init_ticket_msg(&omsg, CL_RESULT, 0, rv, 0, tk);
+	init_ticket_msg(conf, &omsg, CL_RESULT, 0, rv, 0, tk);
 	rc = send_client_msg(conf, client_fd, &omsg);
 
 	if (rc == 0 && (rv == RLT_MORE ||
@@ -834,7 +834,7 @@ ticket_broadcast(struct booth_config *conf, struct ticket_config *tk,
 {
 	struct boothc_ticket_msg msg;
 
-	init_ticket_msg(&msg, cmd, 0, res, reason, tk);
+	init_ticket_msg(conf, &msg, cmd, 0, res, reason, tk);
 	tk_log_debug("broadcasting '%s' (term=%d, valid=%d)",
 		     state_to_string(cmd),
 		     ntohl(msg.ticket.term),
@@ -1460,7 +1460,7 @@ send_reject(struct booth_config *conf, struct booth_site *dest,
 	struct boothc_ticket_msg msg;
 
 	tk_log_debug("sending reject to %s", site_string(dest));
-	init_ticket_msg(&msg, OP_REJECTED, req, code, 0, tk);
+	init_ticket_msg(conf, &msg, OP_REJECTED, req, code, 0, tk);
 	return booth_udp_send_auth(conf, dest, &msg, sendmsglen(&msg));
 }
 
@@ -1488,6 +1488,6 @@ send_msg(struct booth_config *conf, int cmd, struct ticket_config *tk,
 		req = ntohl(in_msg->header.cmd);
 	}
 
-	init_ticket_msg(&msg, cmd, req, RLT_SUCCESS, 0, valid_tk);
+	init_ticket_msg(conf, &msg, cmd, req, RLT_SUCCESS, 0, valid_tk);
 	return booth_udp_send_auth(conf, dest, &msg, sendmsglen(&msg));
 }
