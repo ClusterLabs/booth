@@ -182,7 +182,7 @@ site_port(const struct booth_site *site)
 }
 
 static inline const char *
-ticket_leader_string(struct ticket_config *tk)
+ticket_leader_string(const struct ticket_config *tk)
 {
 	return site_string(tk->leader);
 }
