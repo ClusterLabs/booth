@@ -96,9 +96,9 @@ pcmk_grant_ticket(const struct booth_config *conf, struct ticket_config *tk)
 }
 
 static int
-pcmk_revoke_ticket(struct ticket_config *tk)
+pcmk_revoke_ticket(const struct booth_config *conf, struct ticket_config *tk)
 {
-	return pcmk_write_ticket_atomic(booth_conf, tk, -1);
+	return pcmk_write_ticket_atomic(conf, tk, -1);
 }
 
 static int

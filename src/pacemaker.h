@@ -26,7 +26,8 @@
 struct ticket_handler {
 	int (*grant_ticket) (const struct booth_config *conf,
 	                     struct ticket_config *tk);
-	int (*revoke_ticket) (struct ticket_config *tk);
+	int (*revoke_ticket) (const struct booth_config *conf,
+	                      struct ticket_config *tk);
 	int (*load_ticket) (struct booth_config *conf, struct ticket_config *tk);
 	int (*set_attr) (struct ticket_config *tk, const char *a, const char *v);
 	int (*get_attr) (struct ticket_config *tk, const char *a, const char **vp);

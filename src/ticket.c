@@ -165,7 +165,7 @@ ticket_write(const struct booth_config *conf, struct ticket_config *tk)
 		}
 		pcmk_handler.grant_ticket(conf, tk);
 	} else {
-		pcmk_handler.revoke_ticket(tk);
+		pcmk_handler.revoke_ticket(conf, tk);
 	}
 
 	tk->update_cib = 0;
