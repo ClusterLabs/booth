@@ -332,33 +332,49 @@ static int
 read_authkey(struct booth_config *conf)
 {
 	int fd;
+	int rc = 0;
 
 	conf->authkey[0] = '\0';
 	fd = open(conf->authfile, O_RDONLY);
 	if (fd < 0) {
 		log_error("cannot open %s: %s",
 			conf->authfile, strerror(errno));
-		return -1;
+		rc = -1;
+		goto done;
 	}
+
 	if (fstat(fd, &conf->authstat) < 0) {
 		log_error("cannot stat authentication file %s (%d): %s",
 			conf->authfile, fd, strerror(errno));
-		close(fd);
-		return -1;
+		rc = -1;
+		goto done;
 	}
 	if (conf->authstat.st_mode & (S_IRGRP | S_IROTH)) {
 		log_error("%s: file shall not be readable for anyone but the owner",
 			conf->authfile);
-		close(fd);
-		return -1;
+		rc = -1;
+		goto done;
 	}
+
 	conf->authkey_len = read(fd, conf->authkey, BOOTH_MAX_KEY_LEN);
-	close(fd);
+
 	trim_key(conf);
 	log_debug("read key of size %d in authfile %s",
 		conf->authkey_len, conf->authfile);
-	/* make sure that the key is of minimum length */
-	return (conf->authkey_len >= BOOTH_MIN_KEY_LEN) ? 0 : -1;
+
+	// Make sure that the key is at least of minimum length
+	if (conf->authkey_len < BOOTH_MIN_KEY_LEN) {
+		log_error("Key in authfile %s is too short (%d < %d)",
+			conf->authfile, conf->authkey_len,
+			BOOTH_MIN_KEY_LEN);
+		rc = -1;
+	}
+
+done:
+	if (fd >= 0) {
+		close(fd);
+	}
+	return rc;
 }
 
 static int
