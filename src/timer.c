@@ -45,7 +45,7 @@ interval_add(timetype *a, int b, timetype *res)
 }
 
 int
-is_time_set(timetype *p)
+is_time_set(const timetype *p)
 {
 	return (p->tv_sec != 0) || (p->SUBSEC != 0);
 }
