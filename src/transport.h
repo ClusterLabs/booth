@@ -103,7 +103,9 @@ int booth_udp_send_auth(struct booth_config *conf, struct booth_site *to,
  */
 int message_recv(struct booth_config *conf, void *msg, int msglen);
 
-inline static void * node_to_addr_pointer(struct booth_site *node) {
+static inline void *
+node_to_addr_pointer(struct booth_site *node)
+{
 	switch (node->family) {
 	case AF_INET:  return &node->sa4.sin_addr;
 	case AF_INET6: return &node->sa6.sin6_addr;

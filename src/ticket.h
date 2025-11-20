@@ -259,12 +259,14 @@ int is_manual(struct ticket_config *tk);
 
 int check_attr_prereq(struct ticket_config *tk, grant_type_e grant_type);
 
-static inline void ticket_next_cron_at(struct ticket_config *tk, timetype *when)
+static inline void
+ticket_next_cron_at(struct ticket_config *tk, timetype *when)
 {
 	copy_time(when, &tk->next_cron);
 }
 
-static inline void ticket_next_cron_in(struct ticket_config *tk, int interval)
+static inline void
+ticket_next_cron_in(struct ticket_config *tk, int interval)
 {
 	timetype tv;
 
@@ -272,13 +274,12 @@ static inline void ticket_next_cron_in(struct ticket_config *tk, int interval)
 	ticket_next_cron_at(tk, &tv);
 }
 
-
-static inline void ticket_activate_timeout(struct ticket_config *tk)
+static inline void
+ticket_activate_timeout(struct ticket_config *tk)
 {
 	/* TODO: increase timeout when no answers */
 	tk_log_debug("activate ticket timeout in %d", tk->timeout);
 	ticket_next_cron_in(tk, tk->timeout);
 }
-
 
 #endif /* _TICKET_H */
