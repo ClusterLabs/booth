@@ -1248,8 +1248,9 @@ tickets_log_info(struct booth_config *conf)
 }
 
 static void
-update_acks(struct ticket_config *tk, struct booth_site *sender,
-            struct booth_site *leader, struct boothc_ticket_msg *msg)
+update_acks(const struct booth_config *conf, struct ticket_config *tk,
+            struct booth_site *sender, struct booth_site *leader,
+            struct boothc_ticket_msg *msg)
 {
 	uint32_t cmd;
 	uint32_t req;
@@ -1264,7 +1265,7 @@ update_acks(struct ticket_config *tk, struct booth_site *sender,
 	/* got an ack! */
 	tk->acks_received |= sender->bitmask;
 
-	if (all_replied(tk) ||
+	if (all_replied(conf, tk) ||
 	    /* we just stepped down, need only one site to start elections */
 	    (cmd == OP_REQ_VOTE && tk->last_request == OP_VOTE_FOR)) {
 		no_resends(tk);
@@ -1299,7 +1300,7 @@ ticket_recv(struct booth_config *conf, void *buf, struct booth_site *source)
 		return -EINVAL;
 	}
 
-	update_acks(tk, source, leader, msg);
+	update_acks(conf, tk, source, leader, msg);
 	return raft_answer(conf, tk, source, leader, msg);
 }
 

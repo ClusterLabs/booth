@@ -299,9 +299,9 @@ majority_of_bits(const struct booth_config *conf, struct ticket_config *tk,
 }
 
 static inline int
-all_replied(struct ticket_config *tk)
+all_replied(const struct booth_config *conf, struct ticket_config *tk)
 {
-	return !(tk->acks_received ^ booth_conf->all_bits);
+	return (tk->acks_received ^ conf->all_bits) == 0;
 }
 
 static inline int
