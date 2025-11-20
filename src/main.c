@@ -681,7 +681,7 @@ test_reply(cmd_result_t reply_code, cmd_request_t cmd)
 }
 
 static int
-query_get_string_answer(cmd_request_t cmd)
+query_get_string_answer(struct booth_config *conf, cmd_request_t cmd)
 {
 	struct booth_site *site;
 	struct boothc_hdr_msg reply;
@@ -706,11 +706,11 @@ query_get_string_answer(cmd_request_t cmd)
 	header = (struct boothc_header *)request;
 	data = NULL;
 
-	init_header(booth_conf, header, cmd, 0, cl.options, 0, 0, msg_size);
+	init_header(conf, header, cmd, 0, cl.options, 0, 0, msg_size);
 
 	if (!*cl.site)
 		site = local;
-	else if (!find_site_by_name(booth_conf, cl.site, &site, 1)) {
+	else if (!find_site_by_name(conf, cl.site, &site, 1)) {
 		log_error("cannot find site \"%s\"", cl.site);
 		rv = ENOENT;
 		goto out;
@@ -721,11 +721,11 @@ query_get_string_answer(cmd_request_t cmd)
 	if (rv < 0)
 		goto out_close;
 
-	rv = tpt->send(booth_conf, site, request, msg_size);
+	rv = tpt->send(conf, site, request, msg_size);
 	if (rv < 0)
 		goto out_close;
 
-	rv = tpt->recv_auth(booth_conf, site, &reply, sizeof(reply));
+	rv = tpt->recv_auth(conf, site, &reply, sizeof(reply));
 	if (rv < 0)
 		goto out_close;
 
@@ -1587,7 +1587,7 @@ do_client(struct booth_config **conf)
 	switch (cl.op) {
 	case CMD_LIST:
 	case CMD_PEERS:
-		rv = query_get_string_answer(cl.op);
+		rv = query_get_string_answer(*conf, cl.op);
 		break;
 
 	case CMD_GRANT:
@@ -1632,7 +1632,7 @@ do_attr(struct booth_config **conf)
 	switch (cl.op) {
 	case ATTR_LIST:
 	case ATTR_GET:
-		rv = query_get_string_answer(cl.op);
+		rv = query_get_string_answer(*conf, cl.op);
 		break;
 
 	case ATTR_SET:
