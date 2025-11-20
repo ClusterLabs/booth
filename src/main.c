@@ -449,9 +449,8 @@ out:
 	return rv;
 }
 
-
 static int
-write_daemon_state(int fd, int state)
+write_daemon_state(const struct booth_config *conf, int fd, int state)
 {
 	char *buffer;
 	int rv, size;
@@ -460,8 +459,7 @@ write_daemon_state(int fd, int state)
 			       "booth_cfg_name='%s' booth_id=%d "
 			       "booth_addr_string='%s' booth_port=%d\n",
 		      getpid(), state_string(state), type_to_string(local->type),
-		      booth_conf->name, get_local_id(), site_string(local),
-		      site_port(local));
+		      conf->name, get_local_id(), site_string(local), site_port(local));
 
 	if (rv < 0) {
 		log_error("Buffer write failed in write_daemon_state().");
@@ -519,7 +517,7 @@ process_signals(void)
 }
 
 static int
-loop(int fd)
+loop(const struct booth_config *conf, int fd)
 {
 	workfn_t workfn;
 	void (*deadfn) (int ci);
@@ -534,7 +532,7 @@ loop(int fd)
 		goto fail;
 	}
 
-	rv = write_daemon_state(fd, BOOTHD_STARTED);
+	rv = write_daemon_state(conf, fd, BOOTHD_STARTED);
 	if (rv != 0) {
 		log_error("write daemon state %d to lockfile error %s: %s",
                       BOOTHD_STARTED, cl.lockfile, strerror(errno));
@@ -929,7 +927,7 @@ is_root(void)
 }
 
 static int
-create_lockfile(void)
+create_lockfile(const struct booth_config *conf)
 {
 	int rv, fd;
 
@@ -948,7 +946,7 @@ create_lockfile(void)
 		goto fail;
 	}
 
-	rv = write_daemon_state(fd, BOOTHD_STARTING);
+	rv = write_daemon_state(conf, fd, BOOTHD_STARTING);
 	if (rv != 0) {
 		log_error("write daemon state %d to lockfile error %s: %s",
 				BOOTHD_STARTING, cl.lockfile, strerror(errno));
@@ -1531,7 +1529,7 @@ do_server(struct booth_config **conf, int type)
 
 	/* The lockfile must be written to _after_ the call to daemon(), so
 	 * that the lockfile contains the pid of the daemon, not the parent. */
-	lock_fd = create_lockfile();
+	lock_fd = create_lockfile(*conf);
 	if (lock_fd < 0)
 		return lock_fd;
 
@@ -1570,7 +1568,7 @@ do_server(struct booth_config **conf, int type)
 #endif
 
 	signal(SIGCHLD, (__sighandler_t)sig_chld_handler);
-	rv = loop(lock_fd);
+	rv = loop(*conf, lock_fd);
 
 	return rv;
 }
