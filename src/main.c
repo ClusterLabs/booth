@@ -953,10 +953,9 @@ create_lockfile(const struct booth_config *conf)
 		goto fail;
 	}
 
-	if (is_root()) {
-		if (fchown(fd, booth_conf->uid, booth_conf->gid) < 0)
-			log_error("fchown() on lockfile said %d: %s",
-					errno, strerror(errno));
+	if (is_root() && (fchown(fd, conf->uid, conf->gid) < 0)) {
+		log_error("fchown() on lockfile said %d: %s",
+				errno, strerror(errno));
 	}
 
 	return fd;
