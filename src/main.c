@@ -233,9 +233,9 @@ find_client_by_fd(int fd)
 }
 
 static int
-format_peers(char **pdata, unsigned int *len)
+format_peers(const struct booth_config *conf, char **pdata, unsigned int *len)
 {
-	struct booth_site *s;
+	const struct booth_site *s;
 	char *data, *cp;
 	char time_str[64];
 	int i, alloc;
@@ -243,13 +243,13 @@ format_peers(char **pdata, unsigned int *len)
 	*pdata = NULL;
 	*len = 0;
 
-	alloc = booth_conf->site_count * (BOOTH_NAME_LEN + 256);
+	alloc = conf->site_count * (BOOTH_NAME_LEN + 256);
 	data = malloc(alloc);
 	if (!data)
 		return -ENOMEM;
 
 	cp = data;
-	FOREACH_NODE(booth_conf, i, s) {
+	FOREACH_NODE(conf, i, s) {
 		if (s == local)
 			continue;
 		strftime(time_str, sizeof(time_str), "%F %T",
@@ -293,7 +293,7 @@ list_peers(struct booth_config *conf, int fd)
 	unsigned int olen;
 	struct boothc_hdr_msg hdr;
 
-	if (format_peers(&data, &olen) < 0) {
+	if (format_peers(conf, &data, &olen) < 0) {
 		goto out;
 	}
 
