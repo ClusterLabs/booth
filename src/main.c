@@ -1636,7 +1636,7 @@ do_attr(struct booth_config **conf)
 
 	case ATTR_SET:
 	case ATTR_DEL:
-		rv = do_attr_command(booth_conf, cl.op);
+		rv = do_attr_command(*conf, cl.op);
 		break;
 	}
 
