@@ -968,7 +968,7 @@ handle_resends(struct booth_config *conf, struct ticket_config *tk)
 		goto just_resend;
 	}
 
-	if (!majority_of_bits(tk, tk->acks_received)) {
+	if (!majority_of_bits(conf, tk, tk->acks_received)) {
 		ack_cnt = count_bits(tk->acks_received) - 1;
 
 		if (!ack_cnt) {
@@ -1143,7 +1143,7 @@ next_action(struct booth_config *conf, struct ticket_config *tk)
 		/* timeout or ticket renewal? */
 		if (tk->acks_expected) {
 			handle_resends(conf, tk);
-			if (majority_of_bits(tk, tk->acks_received)) {
+			if (majority_of_bits(conf, tk, tk->acks_received)) {
 				leader_update_ticket(conf, tk);
 			}
 		} else if (!do_ext_prog(conf, tk, 1)) {

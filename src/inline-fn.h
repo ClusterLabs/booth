@@ -290,12 +290,12 @@ count_bits(uint64_t val)
 }
 
 static inline int
-majority_of_bits(struct ticket_config *tk, uint64_t val)
+majority_of_bits(const struct booth_config *conf, struct ticket_config *tk,
+                 uint64_t val)
 {
 	/* Use ">" to get majority decision, even for an even number
 	 * of participants. */
-	return count_bits(val) * 2 >
-		booth_conf->site_count;
+	return (count_bits(val) * 2) > conf->site_count;
 }
 
 static inline int

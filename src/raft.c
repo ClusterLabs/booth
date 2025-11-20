@@ -461,7 +461,7 @@ process_ACK(struct booth_config *conf, struct ticket_config *tk,
 	if ((req == OP_UPDATE || req == OP_HEARTBEAT) &&
 			term == tk->current_term &&
 			leader == tk->leader &&
-			majority_of_bits(tk, tk->acks_received)) {
+			majority_of_bits(conf, tk, tk->acks_received)) {
 		/* OK, at least half of the nodes are reachable;
 		 * Update the ticket and send update messages out
 		 */
