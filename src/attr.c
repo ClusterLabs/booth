@@ -180,7 +180,7 @@ do_attr_command(struct booth_config *conf, cmd_request_t cmd)
 
 	tpt = booth_transport + TCP;
 
-	init_header(&cl.attr_msg.header, cmd, 0, cl.options, 0, 0,
+	init_header(conf, &cl.attr_msg.header, cmd, 0, cl.options, 0, 0,
 		sizeof(cl.attr_msg));
 
 	rv = tpt->open(site);
@@ -382,7 +382,7 @@ attr_get(struct booth_config *conf, struct ticket_config *tk, int fd,
 		return RLT_SYNC_FAIL;
 	}
 	g_string_printf(attr_val, "%s\n", a->val);
-	init_header(&hdr.header, ATTR_GET, 0, 0, RLT_SUCCESS, 0,
+	init_header(conf, &hdr.header, ATTR_GET, 0, 0, RLT_SUCCESS, 0,
 		sizeof(hdr) + attr_val->len);
 
 	if (send_header_plus(conf, fd, &hdr, attr_val->str, attr_val->len)) {
@@ -417,7 +417,7 @@ attr_list(struct booth_config *conf, struct ticket_config *tk, int fd,
 		g_hash_table_foreach(tk->attr, append_attr, data);
 	}
 
-	init_header(&hdr.header, ATTR_LIST, 0, 0, RLT_SUCCESS, 0,
+	init_header(conf, &hdr.header, ATTR_LIST, 0, 0, RLT_SUCCESS, 0,
 		sizeof(hdr) + data->len);
 	rv = send_header_plus(conf, fd, &hdr, data->str, data->len);
 
@@ -471,7 +471,7 @@ process_attr_request(struct booth_config *conf, struct client *req_client,
 	}
 
 reply_now:
-	init_header(&hdr.header, CL_RESULT, 0, 0, rv, 0, sizeof(hdr));
+	init_header(conf, &hdr.header, CL_RESULT, 0, 0, rv, 0, sizeof(hdr));
 	send_header_plus(conf, req_client->fd, &hdr, NULL, 0);
 	return 1;
 }

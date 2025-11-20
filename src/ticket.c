@@ -703,7 +703,7 @@ ticket_answer_list(struct booth_config *conf, int fd)
 		goto out;
 	}
 
-	init_header(&hdr.header, CL_LIST, 0, 0, RLT_SUCCESS, 0, sizeof(hdr) + strlen(data));
+	init_header(conf, &hdr.header, CL_LIST, 0, 0, RLT_SUCCESS, 0, sizeof(hdr) + strlen(data));
 	rv = send_header_plus(conf, fd, &hdr, data, strlen(data));
 
 out:

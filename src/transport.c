@@ -531,7 +531,7 @@ process_connection(struct booth_config *conf, int ci)
 	return;
 
 send_err:
-	init_header(&err_reply.header, CL_RESULT, 0, 0, errc, 0, sizeof(err_reply));
+	init_header(conf, &err_reply.header, CL_RESULT, 0, 0, errc, 0, sizeof(err_reply));
 	send_client_msg(conf, req_cl->fd, &err_reply);
 
 kill:

@@ -84,7 +84,7 @@ is_resend(struct ticket_config *tk)
 }
 
 static inline void
-init_header_bare(struct boothc_header *h)
+init_header_bare(const struct booth_config *conf, struct boothc_header *h)
 {
 	timetype now;
 
@@ -92,7 +92,7 @@ init_header_bare(struct boothc_header *h)
 	h->magic   = htonl(BOOTHC_MAGIC);
 	h->version = htonl(BOOTHC_VERSION);
 	h->from    = htonl(local->site_id);
-	if (is_auth_req(booth_conf)) {
+	if (is_auth_req(conf)) {
 		get_time(&now);
 		h->opts  = htonl(BOOTH_OPT_AUTH);
 		h->secs  = htonl(secs_since_epoch(&now));
@@ -109,12 +109,12 @@ init_header_bare(struct boothc_header *h)
 #define sendmsglen(msg) ntohl((msg)->header.length)
 
 static inline void
-init_header(struct boothc_header *h, int cmd, int request, int options,
-            int result, int reason, int data_len)
+init_header(const struct booth_config *conf, struct boothc_header *h, int cmd,
+            int request, int options, int result, int reason, int data_len)
 {
-	init_header_bare(h);
+	init_header_bare(conf, h);
 	h->length  = htonl(data_len -
-		(is_auth_req(booth_conf) ? 0 : sizeof(struct hmac)));
+		(is_auth_req(conf) ? 0 : sizeof(struct hmac)));
 	h->cmd     = htonl(cmd);
 	h->request = htonl(request);
 	h->options = htonl(options);
@@ -139,7 +139,7 @@ init_ticket_msg(struct boothc_ticket_msg *msg, int cmd, int request, int rv,
 {
 	assert(sizeof(msg->ticket.id) == sizeof(tk->name));
 
-	init_header(&msg->header, cmd, request, 0, rv, reason, sizeof(*msg));
+	init_header(booth_conf, &msg->header, cmd, request, 0, rv, reason, sizeof(*msg));
 
 	if (!tk) {
 		memset(&msg->ticket, 0, sizeof(msg->ticket));

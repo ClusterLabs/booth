@@ -297,7 +297,7 @@ list_peers(struct booth_config *conf, int fd)
 		goto out;
 	}
 
-	init_header(&hdr.header, CL_LIST, 0, 0, RLT_SUCCESS, 0, sizeof(hdr) + olen);
+	init_header(conf, &hdr.header, CL_LIST, 0, 0, RLT_SUCCESS, 0, sizeof(hdr) + olen);
 	send_header_plus(conf, fd, &hdr, data, olen);
 
 out:
@@ -723,7 +723,7 @@ query_get_string_answer(cmd_request_t cmd)
 	header = (struct boothc_header *)request;
 	data = NULL;
 
-	init_header(header, cmd, 0, cl.options, 0, 0, msg_size);
+	init_header(booth_conf, header, cmd, 0, cl.options, 0, 0, msg_size);
 
 	if (!*cl.site)
 		site = local;
@@ -834,7 +834,7 @@ do_command(cmd_request_t cmd)
 	}
 
 redirect:
-	init_header(&cl.msg.header, cmd, 0, cl.options, 0, 0, sizeof(cl.msg));
+	init_header(booth_conf, &cl.msg.header, cmd, 0, cl.options, 0, 0, sizeof(cl.msg));
 
 	rv = tpt->open(site);
 	if (rv < 0)
