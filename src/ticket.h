@@ -119,9 +119,6 @@ void disown_ticket(struct ticket_config *tk);
  */
 int check_ticket(struct booth_config *conf, char *ticket, struct ticket_config **tc);
 
-int grant_ticket(struct ticket_config *ticket);
-int revoke_ticket(struct ticket_config *ticket);
-
 /**
  * @internal
  * Second stage of incoming datagram handling (after authentication)
