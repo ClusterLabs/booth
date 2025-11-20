@@ -429,13 +429,13 @@ out:
 }
 
 static int
-setup_transport(void)
+setup_transport(const struct booth_config *conf)
 {
 	int rv;
 
-	rv = transport()->init(message_recv);
+	rv = transport(conf)->init(message_recv);
 	if (rv < 0) {
-		log_error("failed to init booth_transport %s", transport()->name);
+		log_error("failed to init booth_transport %s", transport(conf)->name);
 		goto out;
 	}
 
@@ -523,7 +523,7 @@ loop(struct booth_config *conf, int fd)
 	void (*deadfn) (int ci);
 	int rv, i;
 
-	rv = setup_transport();
+	rv = setup_transport(conf);
 	if (rv < 0)
 		goto fail;
 
