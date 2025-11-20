@@ -702,9 +702,7 @@ ticket_answer_list(struct booth_config *conf, int fd)
 	rv = send_header_plus(conf, fd, &hdr, data, strlen(data));
 
 out:
-	if (data != NULL) {
-		free(data);
-	}
+	free(data);
 	return rv;
 }
 

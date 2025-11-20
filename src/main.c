@@ -298,9 +298,7 @@ list_peers(struct booth_config *conf, int fd)
 	send_header_plus(conf, fd, &hdr, data, olen);
 
 out:
-	if (data) {
-		free(data);
-	}
+	free(data);
 }
 
 /* trim trailing spaces if the key is ascii
@@ -372,18 +370,17 @@ setup_config(struct booth_config **conf, int type)
 
 	rv = read_config(conf, cl.configfile, type);
 	if (rv < 0) {
-		goto out;
+		return rv;
 	}
 
 	if ((*conf)->authfile[0] != '\0') {
 		rv = read_authkey(*conf);
 		if (rv < 0)
-			goto out;
+			return rv;
 #if HAVE_LIBGCRYPT
 		if (!gcry_check_version(NULL)) {
 			log_error("gcry_check_version");
-			rv = -ENOENT;
-			goto out;
+			return -ENOENT;
 		}
 		gcry_control(GCRYCTL_DISABLE_SECMEM, 0);
 		gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
@@ -391,8 +388,7 @@ setup_config(struct booth_config **conf, int type)
 #if HAVE_LIBGNUTLS
 		if (gnutls_global_init() != 0) {
 			log_error("Cannot initialize GnuTLS");
-			rv = -EINVAL;
-			goto out;
+			return -EINVAL;
 		};
 #endif
 	}
@@ -411,7 +407,7 @@ setup_config(struct booth_config **conf, int type)
 
 	rv = check_config(*conf, type);
 	if (rv < 0)
-		goto out;
+		return rv;
 
 
 	/* Per default the PID file name is derived from the
@@ -421,7 +417,6 @@ setup_config(struct booth_config **conf, int type)
 		         "%s/%s.pid", BOOTH_RUN_DIR, (*conf)->name);
 	}
 
-out:
 	return rv;
 }
 
@@ -433,16 +428,14 @@ setup_transport(const struct booth_config *conf)
 	rv = transport(conf)->init(message_recv);
 	if (rv < 0) {
 		log_error("failed to init booth_transport %s", transport(conf)->name);
-		goto out;
+		return rv;
 	}
 
 	rv = booth_transport[TCP].init(NULL);
 	if (rv < 0) {
 		log_error("failed to init booth_transport[TCP]");
-		goto out;
 	}
 
-out:
 	return rv;
 }
 
@@ -751,8 +744,7 @@ out_test_reply:
 out_close:
 	tpt->close(site);
 out:
-	if (data)
-		free(data);
+	free(data);
 	return rv;
 }
 
@@ -1577,23 +1569,21 @@ do_client(struct booth_config **conf)
 	rv = setup_config(conf, CLIENT);
 	if (rv < 0) {
 		log_error("cannot read config");
-		goto out;
+		return rv;
 	}
 
 	switch (cl.op) {
 	case CMD_LIST:
 	case CMD_PEERS:
-		rv = query_get_string_answer(*conf, cl.op);
-		break;
+		return query_get_string_answer(*conf, cl.op);
 
 	case CMD_GRANT:
 	case CMD_REVOKE:
-		rv = do_command(*conf, cl.op);
-		break;
-	}
+		return do_command(*conf, cl.op);
 
-out:
-	return rv;
+	default:
+		return rv;
+	}
 }
 
 static int
@@ -1606,7 +1596,7 @@ do_attr(struct booth_config **conf)
 	rv = setup_config(conf, GEOSTORE);
 	if (rv < 0) {
 		log_error("cannot read config");
-		goto out;
+		return rv;
 	}
 
 	/* We don't check for existence of ticket, so that asking can be
@@ -1619,26 +1609,23 @@ do_attr(struct booth_config **conf)
 			        (*conf)->ticket[0].name,
 			        sizeof(cl.attr_msg.attr.tkt_id));
 		} else {
-			rv = 1;
 			log_error("No ticket given.");
-			goto out;
+			return 1;
 		}
 	}
 
 	switch (cl.op) {
 	case ATTR_LIST:
 	case ATTR_GET:
-		rv = query_get_string_answer(*conf, cl.op);
-		break;
+		return query_get_string_answer(*conf, cl.op);
 
 	case ATTR_SET:
 	case ATTR_DEL:
-		rv = do_attr_command(*conf, cl.op);
-		break;
-	}
+		return do_attr_command(*conf, cl.op);
 
-out:
-	return rv;
+	default:
+		return rv;
+	}
 }
 
 int
