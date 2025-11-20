@@ -357,6 +357,12 @@ read_authkey(struct booth_config *conf)
 	}
 
 	conf->authkey_len = read(fd, conf->authkey, BOOTH_MAX_KEY_LEN);
+	if (conf->authkey_len < 0) {
+		log_error("Failed to read authfile %s: %s",
+			conf->authfile, strerror(errno));
+		rc = -1;
+		goto done;
+	}
 
 	trim_key(conf);
 	log_debug("read key of size %d in authfile %s",
