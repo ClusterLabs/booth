@@ -442,19 +442,13 @@ number_sites_marked_as_granted(struct booth_config *conf,
 static int
 list_ticket(struct booth_config *conf, char **pdata)
 {
-	GString *s = NULL;
+	GString *s = g_string_sized_new(BUFSIZ);
 	struct ticket_config *tk;
 	struct booth_site *site;
 	char timeout_str[64];
 	char *pending_str = NULL;
 	int i, site_index;
 	time_t ts;
-
-	s = g_string_sized_new(BUFSIZ);
-
-	if (s == NULL) {
-		return -ENOMEM;
-	}
 
 	FOREACH_TICKET(conf, i, tk) {
 		if (!is_manual(tk) && is_time_set(&tk->term_expires)) {

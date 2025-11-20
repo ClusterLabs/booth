@@ -346,17 +346,9 @@ parse_ticket_state(struct booth_config *conf, struct ticket_config *tk, FILE *p)
 		goto out;
 	}
 	input = g_string_sized_new(CHUNK_SIZE);
-	if (!input) {
-		log_error("out of memory");
-		rv = -1;
-		goto out;
-	}
+
 	while (fgets(line, CHUNK_SIZE-1, p) != NULL) {
-		if (!g_string_append(input, line)) {
-			log_error("out of memory");
-			rv = -1;
-			goto out;
-		}
+		g_string_append(input, line);
 	}
 
 	doc = xmlReadDoc((const xmlChar *) input->str, NULL, NULL, opts);

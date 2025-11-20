@@ -377,10 +377,6 @@ attr_get(struct booth_config *conf, struct ticket_config *tk, int fd,
 	}
 
 	attr_val = g_string_new(NULL);
-	if (!attr_val) {
-		log_error("out of memory");
-		return RLT_SYNC_FAIL;
-	}
 	g_string_printf(attr_val, "%s\n", a->val);
 	init_header(conf, &hdr.header, ATTR_GET, 0, 0, RLT_SUCCESS, 0,
 		sizeof(hdr) + attr_val->len);
@@ -389,10 +385,7 @@ attr_get(struct booth_config *conf, struct ticket_config *tk, int fd,
 		rv = RLT_SYNC_FAIL;
 	}
 
-	if (attr_val) {
-		g_string_free(attr_val, TRUE);
-	}
-
+	g_string_free(attr_val, TRUE);
 	return rv;
 }
 
@@ -400,7 +393,7 @@ static cmd_result_t
 attr_list(struct booth_config *conf, struct ticket_config *tk, int fd,
           struct boothc_attr_msg *msg)
 {
-	GString *data;
+	GString *data = g_string_sized_new(512);
 	cmd_result_t rv;
 	struct boothc_hdr_msg hdr;
 
@@ -408,11 +401,6 @@ attr_list(struct booth_config *conf, struct ticket_config *tk, int fd,
 	 * list all attributes for the ticket
 	 * send the list
 	 */
-	data = g_string_sized_new(512);
-	if (!data) {
-		log_error("out of memory");
-		return RLT_SYNC_FAIL;
-	}
 	if (tk->attr) {
 		g_hash_table_foreach(tk->attr, append_attr, data);
 	}
@@ -421,10 +409,7 @@ attr_list(struct booth_config *conf, struct ticket_config *tk, int fd,
 		sizeof(hdr) + data->len);
 	rv = send_header_plus(conf, fd, &hdr, data->str, data->len);
 
-	if (data) {
-		g_string_free(data, TRUE);
-	}
-
+	g_string_free(data, TRUE);
 	return rv;
 }
 
