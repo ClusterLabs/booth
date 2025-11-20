@@ -1042,7 +1042,7 @@ process_next_state(struct booth_config *conf, struct ticket_config *tk)
 }
 
 static void
-ticket_lost(struct ticket_config *tk)
+ticket_lost(const struct booth_config *conf, struct ticket_config *tk)
 {
 	int reason = OR_TKT_LOST;
 
@@ -1065,7 +1065,7 @@ ticket_lost(struct ticket_config *tk)
 	set_state(tk, ST_FOLLOWER);
 
 	if (local->type == SITE) {
-		ticket_write(booth_conf, tk);
+		ticket_write(conf, tk);
 		schedule_election(tk, reason);
 	}
 }
@@ -1192,7 +1192,7 @@ ticket_cron(struct booth_config *conf, struct ticket_config *tk)
 	 */
 	if (!is_manual(tk) && is_owned(tk) && is_time_set(&tk->term_expires) &&
 	    is_past(&tk->term_expires)) {
-		ticket_lost(tk);
+		ticket_lost(conf, tk);
 		goto out;
 	}
 
