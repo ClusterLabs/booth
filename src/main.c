@@ -309,25 +309,26 @@ out:
 /* trim trailing spaces if the key is ascii
  */
 static void
-trim_key(void)
+trim_key(struct booth_config *conf)
 {
-	char *p;
-	int i;
+	char *p = conf->authkey;
 
-	for (i=0, p=booth_conf->authkey; i < booth_conf->authkey_len; i++, p++)
-		if (!isascii(*p))
+	for (int i = 0; i < conf->authkey_len; i++, p++) {
+		if (!isascii(*p)) {
 			return;
-
-	p = booth_conf->authkey;
-	while (booth_conf->authkey_len > 0 && isspace(*p)) {
-		p++;
-		booth_conf->authkey_len--;
+		}
 	}
-	memmove(booth_conf->authkey, p, booth_conf->authkey_len);
 
-	p = booth_conf->authkey + booth_conf->authkey_len - 1;
-	while (booth_conf->authkey_len > 0 && isspace(*p)) {
-		booth_conf->authkey_len--;
+	p = conf->authkey;
+	while ((conf->authkey_len > 0) && isspace(*p)) {
+		p++;
+		conf->authkey_len--;
+	}
+	memmove(conf->authkey, p, conf->authkey_len);
+
+	p = conf->authkey + conf->authkey_len - 1;
+	while ((conf->authkey_len > 0) && isspace(*p)) {
+		conf->authkey_len--;
 		p--;
 	}
 }
@@ -358,7 +359,7 @@ read_authkey(void)
 	}
 	booth_conf->authkey_len = read(fd, booth_conf->authkey, BOOTH_MAX_KEY_LEN);
 	close(fd);
-	trim_key();
+	trim_key(booth_conf);
 	log_debug("read key of size %d in authfile %s",
 		booth_conf->authkey_len, booth_conf->authfile);
 	/* make sure that the key is of minimum length */
