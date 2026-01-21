@@ -408,7 +408,7 @@ retry:
 
 
 /* Only used for client requests (tcp) */
-int
+static int
 read_client(struct client *req_cl)
 {
 	char *msg;
@@ -531,7 +531,7 @@ process_connection(struct booth_config *conf, int ci)
 	return;
 
 send_err:
-	init_header(&err_reply.header, CL_RESULT, 0, 0, errc, 0, sizeof(err_reply));
+	init_header(conf, &err_reply.header, CL_RESULT, 0, 0, errc, 0, sizeof(err_reply));
 	send_client_msg(conf, req_cl->fd, &err_reply);
 
 kill:
@@ -745,7 +745,7 @@ add_hmac(struct booth_config *conf, void *data, int len)
 	int payload_len;
 	struct hmac *hp;
 
-	if (!is_auth_req()) {
+	if (!is_auth_req(conf)) {
 		return 0;
 	}
 
@@ -806,7 +806,7 @@ booth_tcp_recv_auth(struct booth_config *conf, struct booth_site *from,
 
 	total = got;
 
-	if (is_auth_req()) {
+	if (is_auth_req(conf)) {
 		got = booth_tcp_recv(from, (unsigned char *) buf+payload_len,
 				     sizeof(struct hmac));
 
@@ -1150,7 +1150,7 @@ check_auth(struct booth_config *conf, struct booth_site *from, void *buf,
 	int payload_len;
 	struct hmac *hp;
 
-	if (!is_auth_req()) {
+	if (!is_auth_req(conf)) {
 		return 0;
 	}
 

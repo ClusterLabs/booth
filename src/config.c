@@ -38,6 +38,15 @@
 
 static int ticket_size = 0;
 
+void
+free_booth_config(struct booth_config *conf)
+{
+    if (conf != NULL) {
+        free(conf->ticket);
+        free(conf);
+    }
+}
+
 static int
 ticket_realloc(struct booth_config *conf)
 {
@@ -121,7 +130,7 @@ hostname_to_ip(char *hostname)
 static int
 add_site(struct booth_config *conf, char *addr_string, int type)
 {
-	int rv;
+	int rv = 0;
 	struct booth_site *site;
 	uLong nid;
 	uint32_t mask;
@@ -129,15 +138,14 @@ add_site(struct booth_config *conf, char *addr_string, int type)
 
 	assert(conf != NULL);
 
-	rv = 1;
 	if (conf->site_count == MAX_NODES) {
 		log_error("too many nodes");
-		goto out;
+		return 1;
 	}
 	if (strnlen(addr_string, sizeof(conf->site[0].addr_string))
 			>= sizeof(conf->site[0].addr_string)) {
 		log_error("site address \"%s\" too long", addr_string);
-		goto out;
+		return 1;
 	}
 
 	site = conf->site + conf->site_count;
@@ -172,7 +180,6 @@ add_site(struct booth_config *conf, char *addr_string, int type)
 
 	conf->site_count++;
 
-	rv = 0;
 	memset(&site->sa6, 0, sizeof(site->sa6));
 
 	nid = crc32(0L, NULL, 0);
@@ -229,7 +236,6 @@ add_site(struct booth_config *conf, char *addr_string, int type)
 		}
 	}
 
-out:
 	return rv;
 }
 

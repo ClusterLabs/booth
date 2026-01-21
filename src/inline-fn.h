@@ -19,6 +19,7 @@
 #ifndef _INLINE_FN_H
 #define _INLINE_FN_H
 
+#include <stdbool.h>
 #include <time.h>
 #include <sys/time.h>
 #include <assert.h>
@@ -27,22 +28,27 @@
 #include "config.h"
 #include "transport.h"
 
+static inline bool
+is_auth_req(const struct booth_config *conf)
+{
+    return (conf != NULL) && (conf->authkey[0] != '\0');
+}
 
-
-inline static int get_local_id(void)
+static inline int
+get_local_id(void)
 {
 	return local ? local->site_id : -1;
 }
 
-
-inline static uint32_t get_node_id(struct booth_site *node)
+static inline uint32_t
+get_node_id(struct booth_site *node)
 {
 	return node ? node->site_id : 0;
 }
 
-
 /** Returns number of seconds left, if any. */
-inline static int term_time_left(struct ticket_config *tk)
+static inline int
+term_time_left(struct ticket_config *tk)
 {
 	int left = 0;
 
@@ -52,8 +58,8 @@ inline static int term_time_left(struct ticket_config *tk)
 	return (left < 0) ? 0 : left;
 }
 
-
-inline static int leader_and_valid(struct ticket_config *tk)
+static inline int
+leader_and_valid(struct ticket_config *tk)
 {
 	if (tk->leader != local)
 		return 0;
@@ -61,14 +67,15 @@ inline static int leader_and_valid(struct ticket_config *tk)
 	return term_time_left(tk);
 }
 
-
 /** Is this some leader? */
-inline static int is_owned(const struct ticket_config *tk)
+static inline int
+is_owned(const struct ticket_config *tk)
 {
 	return (tk->leader && tk->leader != no_leader);
 }
 
-inline static int is_resend(struct ticket_config *tk)
+static inline int
+is_resend(struct ticket_config *tk)
 {
 	timetype now;
 
@@ -76,15 +83,16 @@ inline static int is_resend(struct ticket_config *tk)
 	return time_sub_int(&now, &tk->req_sent_at) >= tk->timeout;
 }
 
-
-static inline void init_header_bare(struct boothc_header *h) {
+static inline void
+init_header_bare(const struct booth_config *conf, struct boothc_header *h)
+{
 	timetype now;
 
 	assert(local && local->site_id);
 	h->magic   = htonl(BOOTHC_MAGIC);
 	h->version = htonl(BOOTHC_VERSION);
 	h->from    = htonl(local->site_id);
-	if (is_auth_req()) {
+	if (is_auth_req(conf)) {
 		get_time(&now);
 		h->opts  = htonl(BOOTH_OPT_AUTH);
 		h->secs  = htonl(secs_since_epoch(&now));
@@ -100,13 +108,13 @@ static inline void init_header_bare(struct boothc_header *h) {
  */
 #define sendmsglen(msg) ntohl((msg)->header.length)
 
-static inline void init_header(struct boothc_header *h,
-			int cmd, int request, int options,
-			int result, int reason, int data_len)
+static inline void
+init_header(const struct booth_config *conf, struct boothc_header *h, int cmd,
+            int request, int options, int result, int reason, int data_len)
 {
-	init_header_bare(h);
+	init_header_bare(conf, h);
 	h->length  = htonl(data_len -
-		(is_auth_req() ? 0 : sizeof(struct hmac)));
+		(is_auth_req(conf) ? 0 : sizeof(struct hmac)));
 	h->cmd     = htonl(cmd);
 	h->request = htonl(request);
 	h->options = htonl(options);
@@ -125,13 +133,14 @@ extern int TIME_RES, TIME_MULT;
 #define set_msg_term_time(msg, tk) \
 	(msg)->ticket.term_valid_for = htonl(term_time_left(tk)*TIME_MULT/TIME_RES)
 
-static inline void init_ticket_msg(struct boothc_ticket_msg *msg,
-		int cmd, int request, int rv, int reason,
-		struct ticket_config *tk)
+static inline void
+init_ticket_msg(const struct booth_config *conf, struct boothc_ticket_msg *msg,
+                int cmd, int request, int rv, int reason,
+                struct ticket_config *tk)
 {
 	assert(sizeof(msg->ticket.id) == sizeof(tk->name));
 
-	init_header(&msg->header, cmd, request, 0, rv, reason, sizeof(*msg));
+	init_header(conf, &msg->header, cmd, request, 0, rv, reason, sizeof(*msg));
 
 	if (!tk) {
 		memset(&msg->ticket, 0, sizeof(msg->ticket));
@@ -146,20 +155,20 @@ static inline void init_ticket_msg(struct boothc_ticket_msg *msg,
 	}
 }
 
-
-static inline struct booth_transport const *transport(void)
+static inline struct booth_transport const *
+transport(const struct booth_config *conf)
 {
-	return booth_transport + booth_conf->proto;
+	return booth_transport + conf->proto;
 }
 
-
-static inline const char *site_string(const struct booth_site *site)
+static inline const char *
+site_string(const struct booth_site *site)
 {
 	return site ? site->addr_string : "NONE";
 }
 
-
-static inline uint16_t site_port(const struct booth_site *site)
+static inline uint16_t
+site_port(const struct booth_site *site)
 {
 	assert(site != NULL);
 
@@ -172,12 +181,11 @@ static inline uint16_t site_port(const struct booth_site *site)
 	}
 }
 
-
-static inline const char *ticket_leader_string(struct ticket_config *tk)
+static inline const char *
+ticket_leader_string(const struct ticket_config *tk)
 {
 	return site_string(tk->leader);
 }
-
 
 /* We allow half of the uint32_t to be used;
  * half of that below, half of that above the current known "good" value.
@@ -205,7 +213,8 @@ static inline const char *ticket_leader_string(struct ticket_config *tk)
  * of weights), we get 2^24 minutes of range - which is ~750
  * years. "Should be enough for everybody."
  */
-static inline int index_is_higher_than(uint32_t c_high, uint32_t c_low)
+static inline int
+index_is_higher_than(uint32_t c_high, uint32_t c_low)
 {
 	uint32_t diff;
 
@@ -223,20 +232,21 @@ static inline int index_is_higher_than(uint32_t c_high, uint32_t c_low)
 	assert(!"commit index out of range - invalid");
 }
 
-
-static inline uint32_t index_max2(uint32_t a, uint32_t b)
+static inline uint32_t
+index_max2(uint32_t a, uint32_t b)
 {
 	return index_is_higher_than(a, b) ? a : b;
 }
 
-static inline uint32_t index_max3(uint32_t a, uint32_t b, uint32_t c)
+static inline uint32_t
+index_max3(uint32_t a, uint32_t b, uint32_t c)
 {
 	return index_max2( index_max2(a, b), c);
 }
 
-
 /* only invoked when ticket leader */
-static inline void get_next_election_time(struct ticket_config *tk, timetype *next)
+static inline void
+get_next_election_time(struct ticket_config *tk, timetype *next)
 {
 	assert(tk->leader == local);
 
@@ -259,9 +269,8 @@ static inline void get_next_election_time(struct ticket_config *tk, timetype *ne
 	}
 }
 
-
-static inline void expect_replies(struct ticket_config *tk,
-		int reply_type)
+static inline void
+expect_replies(struct ticket_config *tk, int reply_type)
 {
 	tk->retry_number = 0;
 	tk->acks_expected = reply_type;
@@ -269,40 +278,44 @@ static inline void expect_replies(struct ticket_config *tk,
 	get_time(&tk->req_sent_at);
 }
 
-static inline void no_resends(struct ticket_config *tk)
+static inline void
+no_resends(struct ticket_config *tk)
 {
 	tk->retry_number = 0;
 	tk->acks_expected = 0;
 }
 
-static inline struct booth_site *my_vote(struct ticket_config *tk)
+static inline struct booth_site *
+my_vote(struct ticket_config *tk)
 {
 	return tk->votes_for[ local->index ];
 }
 
-
-static inline int count_bits(uint64_t val) {
+static inline int
+count_bits(uint64_t val)
+{
 	return __builtin_popcount(val);
 }
 
-static inline int majority_of_bits(struct ticket_config *tk, uint64_t val)
+static inline int
+majority_of_bits(const struct booth_config *conf, struct ticket_config *tk,
+                 uint64_t val)
 {
 	/* Use ">" to get majority decision, even for an even number
 	 * of participants. */
-	return count_bits(val) * 2 >
-		booth_conf->site_count;
+	return (count_bits(val) * 2) > conf->site_count;
 }
 
-
-static inline int all_replied(struct ticket_config *tk)
+static inline int
+all_replied(const struct booth_config *conf, struct ticket_config *tk)
 {
-	return !(tk->acks_received ^ booth_conf->all_bits);
+	return (tk->acks_received ^ conf->all_bits) == 0;
 }
 
-static inline int all_sites_replied(struct ticket_config *tk)
+static inline int
+all_sites_replied(const struct booth_config *conf, struct ticket_config *tk)
 {
-	return !((tk->acks_received & booth_conf->sites_bits) ^ booth_conf->sites_bits);
+	return ((tk->acks_received & conf->sites_bits) ^ conf->sites_bits) == 0;
 }
 
-
-#endif
+#endif  // _INLINE_FN_H

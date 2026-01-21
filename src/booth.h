@@ -354,7 +354,6 @@ int client_add(int fd, const struct booth_transport *tpt,
 		workfn_t workfn, void (*deadfn)(int ci));
 int find_client_by_fd(int fd);
 void safe_copy(char *dest, char *value, size_t buflen, const char *description);
-int update_authkey(void);
 
 /**
  * @internal

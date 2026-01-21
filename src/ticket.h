@@ -45,17 +45,6 @@ extern int TIME_RES;
 	     (n_ = (b_)->site + i_, i_ < (b_)->site_count); \
 	     i_++)
 
-
-#define _FOREACH_TICKET(i_, t_) \
-	for (i_ = 0; \
-	     (t_ = booth_conf->ticket + i_, i_ < booth_conf->ticket_count); \
-	     i_++)
-
-#define _FOREACH_NODE(i_, n_) \
-	for (i_ = 0; \
-	     (n_ = booth_conf->site + i_, i_ < booth_conf->site_count); \
-	     i_++)
-
 #define set_leader(tk, who) do { \
 	if (who == NULL) { \
 		mark_ticket_as_revoked_from_leader(tk); \
@@ -119,9 +108,6 @@ void disown_ticket(struct ticket_config *tk);
  */
 int check_ticket(struct booth_config *conf, char *ticket, struct ticket_config **tc);
 
-int grant_ticket(struct ticket_config *ticket);
-int revoke_ticket(struct ticket_config *ticket);
-
 /**
  * @internal
  * Second stage of incoming datagram handling (after authentication)
@@ -136,7 +122,8 @@ int ticket_recv(struct booth_config *conf, void *buf, struct booth_site *source)
 
 void reset_ticket(struct ticket_config *tk);
 void reset_ticket_and_set_no_leader(struct ticket_config *tk);
-void update_ticket_state(struct ticket_config *tk, struct booth_site *sender);
+void update_ticket_state(const struct booth_config *conf,
+                         struct ticket_config *tk, struct booth_site *sender);
 
 /**
  * @internal
@@ -189,7 +176,7 @@ int ticket_answer_list(struct booth_config *conf, int fd);
 int process_client_request(struct booth_config *conf, struct client *req_client,
 			   void *buf);
 
-int ticket_write(struct ticket_config *tk);
+int ticket_write(const struct booth_config *conf, struct ticket_config *tk);
 
 /**
  * @internal
@@ -259,12 +246,14 @@ int is_manual(struct ticket_config *tk);
 
 int check_attr_prereq(struct ticket_config *tk, grant_type_e grant_type);
 
-static inline void ticket_next_cron_at(struct ticket_config *tk, timetype *when)
+static inline void
+ticket_next_cron_at(struct ticket_config *tk, timetype *when)
 {
 	copy_time(when, &tk->next_cron);
 }
 
-static inline void ticket_next_cron_in(struct ticket_config *tk, int interval)
+static inline void
+ticket_next_cron_in(struct ticket_config *tk, int interval)
 {
 	timetype tv;
 
@@ -272,13 +261,12 @@ static inline void ticket_next_cron_in(struct ticket_config *tk, int interval)
 	ticket_next_cron_at(tk, &tv);
 }
 
-
-static inline void ticket_activate_timeout(struct ticket_config *tk)
+static inline void
+ticket_activate_timeout(struct ticket_config *tk)
 {
 	/* TODO: increase timeout when no answers */
 	tk_log_debug("activate ticket timeout in %d", tk->timeout);
 	ticket_next_cron_in(tk, tk->timeout);
 }
-
 
 #endif /* _TICKET_H */

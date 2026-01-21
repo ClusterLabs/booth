@@ -334,9 +334,7 @@ struct booth_config {
     struct ticket_config *ticket;
 };
 
-extern struct booth_config *booth_conf;
-
-#define is_auth_req() (booth_conf->authkey[0] != '\0')
+void free_booth_config(struct booth_config *conf);
 
 /**
  * @internal
