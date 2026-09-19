@@ -911,6 +911,15 @@ no_value:
 	}
 	fclose(fp);
 
+	/* Apply the (possibly late-set) port to every peer parsed so far. */
+	for (i = 0; i < (*conf)->site_count; i++) {
+		struct booth_site *s = (*conf)->site + i;
+		if (s->family == AF_INET)
+			s->sa4.sin_port = htons((*conf)->port);
+		else
+			s->sa6.sin6_port = htons((*conf)->port);
+	}
+
 	if (((*conf)->site_count % 2) == 0) {
 		log_warn("Odd number of nodes is strongly recommended!");
 	}
