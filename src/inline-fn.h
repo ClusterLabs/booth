@@ -31,7 +31,7 @@
 static inline bool
 is_auth_req(const struct booth_config *conf)
 {
-    return (conf != NULL) && (conf->authkey[0] != '\0');
+    return (conf != NULL) && (conf->authkey_len > 0);
 }
 
 static inline int

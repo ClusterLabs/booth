@@ -7,6 +7,13 @@ AM_CPPFLAGS		= -I$(top_builddir)/include
 
 sbin_PROGRAMS		= boothd
 
+check_PROGRAMS		= test_auth_req
+TESTS			= test_auth_req
+
+test_auth_req_SOURCES	= test_auth_req.c
+test_auth_req_CFLAGS	= $(GLIB_CFLAGS) $(PCMK_CFLAGS)
+test_auth_req_LDADD	= $(GLIB_LIBS) $(PCMK_LIBS)
+
 boothd_SOURCES	 	= config.c main.c raft.c ticket.c transport.c \
 			  pacemaker.c handler.c request.c attr.c manual.c
 
